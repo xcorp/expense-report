@@ -7,6 +7,8 @@ export const translations = {
   'Generate Report': 'Generera Rapport',
   'Generating...': 'Genererar...',
   'Clear All': 'Rensa allt',
+  'Share Report': 'Dela rapport',
+  'Download Report': 'Ladda ner rapport',
 
   // App
   'No expenses to report.': 'Inga utgifter att rapportera.',
@@ -27,7 +29,7 @@ export const translations = {
   'Description, cost, and image are required': 'Beskrivning, kostnad och bild är obligatoriska',
   'Failed to add expense:': 'Det gick inte att lägga till utgift:',
   'Enter category': 'Ange kategori',
-  
+
   // Categories
   'Food': 'Mat',
   'Travel': 'Resor',

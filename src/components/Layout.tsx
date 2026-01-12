@@ -3,12 +3,13 @@ import { translations } from '../i18n';
 
 interface LayoutProps {
   children: React.ReactNode;
-  onGenerateReport: () => void;
+  onShareReport: () => void;
+  onDownloadReport: () => void;
   onClearAll: () => void;
   isReportGenerating: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, onGenerateReport, onClearAll, isReportGenerating }) => {
+const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadReport, onClearAll, isReportGenerating }) => {
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <header className="mb-6">
@@ -16,11 +17,18 @@ const Layout: React.FC<LayoutProps> = ({ children, onGenerateReport, onClearAll,
           <h1 className="text-4xl font-bold text-gray-800">{translations['Expense Report']}</h1>
           <div className="space-x-2">
             <button
-              onClick={onGenerateReport}
+              onClick={onShareReport}
               disabled={isReportGenerating}
               className="inline-flex justify-center rounded-md border border-transparent bg-green-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
             >
-              {isReportGenerating ? translations['Generating...'] : translations['Generate Report']}
+              {isReportGenerating ? translations['Generating...'] : translations['Share Report']}
+            </button>
+            <button
+              onClick={onDownloadReport}
+              disabled={isReportGenerating}
+              className="inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+            >
+              {isReportGenerating ? translations['Generating...'] : translations['Download Report']}
             </button>
             <button
               onClick={onClearAll}

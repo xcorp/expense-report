@@ -129,6 +129,41 @@ function App() {
     }
   };
 
+  const handleDownloadReport = async () => {
+    if (!expenses || expenses.length === 0) {
+      toast.push({ message: translations['No expenses to report.'], type: 'info' });
+      return;
+    }
+
+    const reporterName = localStorage.getItem('reporterName');
+    const bankName = localStorage.getItem('bankName');
+    const clearingNumber = localStorage.getItem('clearingNumber');
+    const accountNumber = localStorage.getItem('accountNumber');
+
+    if (!reporterName || !bankName || !clearingNumber || !accountNumber) {
+      toast.push({ message: translations['Please save your bank details and reporter name before generating the report.'], type: 'info' });
+      return;
+    }
+
+    setIsReportGenerating(true);
+    try {
+      const pdfBlob = await generatePdf(expenses);
+      const file = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
+
+      // Open PDF in a new tab so the user can view it themselves (and download from viewer)
+      const blobUrl = URL.createObjectURL(file);
+      window.open(blobUrl, '_blank');
+
+      // Revoke URL after a bit to allow the new tab to load
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    } catch (error) {
+      console.error(translations['Failed to generate or share report:'], error);
+      toast.push({ message: translations['Failed to generate or share report:'], type: 'error' });
+    } finally {
+      setIsReportGenerating(false);
+    }
+  };
+
   const handleClearAll = async () => {
     if (confirm(translations['Are you sure you want to delete ALL expenses? This action cannot be undone.'])) {
       try {
@@ -142,7 +177,8 @@ function App() {
 
   return (
     <Layout
-      onGenerateReport={handleGenerateReport}
+      onShareReport={handleGenerateReport}
+      onDownloadReport={handleDownloadReport}
       onClearAll={handleClearAll}
       isReportGenerating={isReportGenerating}
     >
