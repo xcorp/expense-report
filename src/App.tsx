@@ -32,7 +32,7 @@ function App() {
     try {
       const pdfBlob = await generatePdf(expenses);
       const pdfFile = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
-      
+
       // Web Share API
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
@@ -40,8 +40,30 @@ function App() {
           text: 'Here is my expense report.', // This text is not visible to the user, so no need to translate
           files: [pdfFile],
         });
+      } else if ((navigator as any).share) {
+        // Some browsers (e.g. Firefox for Android) don't support sharing `File` objects,
+        // but may support sharing a URL. Try sharing a blob URL first before falling back.
+        const blobUrl = URL.createObjectURL(pdfFile);
+        try {
+          await (navigator as any).share({
+            title: translations['Expense Report'],
+            text: 'Here is my expense report.',
+            url: blobUrl,
+          });
+          // Give the share dialog a moment to use the blob URL, then revoke.
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch (err) {
+          // If share fails or is cancelled, fallback to download
+          URL.revokeObjectURL(blobUrl);
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(pdfFile);
+          link.download = 'expense-report.pdf';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       } else {
-        // Fallback to download
+        // Final fallback: download the file
         const link = document.createElement('a');
         link.href = URL.createObjectURL(pdfFile);
         link.download = 'expense-report.pdf';
@@ -69,8 +91,8 @@ function App() {
   };
 
   return (
-    <Layout 
-      onGenerateReport={handleGenerateReport} 
+    <Layout
+      onGenerateReport={handleGenerateReport}
       onClearAll={handleClearAll}
       isReportGenerating={isReportGenerating}
     >
