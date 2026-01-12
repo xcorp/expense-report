@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - main
 
 jobs:
   build:
@@ -19,6 +20,16 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Set Vite base for Pages build
+        run: |
+          if [ -n "${{ secrets.VITE_BASE }}" ]; then
+            echo "VITE_BASE=${{ secrets.VITE_BASE }}" >> $GITHUB_ENV
+          elif [ -n "${{ vars.VITE_BASE }}" ]; then
+            echo "VITE_BASE=${{ vars.VITE_BASE }}" >> $GITHUB_ENV
+          else
+            echo "VITE_BASE=/expense-report/" >> $GITHUB_ENV
+          fi
 
       - name: Build 🏗️
         run: npm run build
