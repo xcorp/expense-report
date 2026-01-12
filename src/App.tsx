@@ -65,18 +65,18 @@ function App() {
               // User cancelled or share failed — copy URL to clipboard as a fallback
               try {
                 await navigator.clipboard.writeText(publicUrl);
-                alert(translations['Report ready — link copied to clipboard.']);
+                alert('Report ready — link copied to clipboard.');
               } catch {
-                alert(translations['Report ready — couldn\'t copy link automatically.'] + ' ' + publicUrl);
+                alert('Report ready — couldn\'t copy link automatically. ' + publicUrl);
               }
             }
           } else {
             // No share API — copy URL to clipboard or show it
             try {
               await navigator.clipboard.writeText(publicUrl);
-              alert(translations['Report ready — link copied to clipboard.']);
+              alert('Report ready — link copied to clipboard.');
             } catch {
-              alert(translations['Report ready — open this link:'] + ' ' + publicUrl);
+              alert('Report ready — open this link: ' + publicUrl);
             }
           }
         } catch (err) {
@@ -154,7 +154,7 @@ function App() {
         </div>
         <div>
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">{translations['Expense List']}</h2>
+
             <span className="text-sm font-semibold text-gray-600">
               {translations['Total']}: {expenses?.length || 0}
             </span>
@@ -164,37 +164,6 @@ function App() {
       </div>
     </Layout>
   );
-}
-
-export default App;
-  };
-
-return (
-  <Layout
-    onGenerateReport={handleGenerateReport}
-    onClearAll={handleClearAll}
-    isReportGenerating={isReportGenerating}
-  >
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div>
-        <h2 className="text-2xl font-bold mb-4">{translations['Add Expense']}</h2>
-        <ExpenseForm />
-        <div className="mt-8">
-          <BankDetailsForm />
-        </div>
-      </div>
-      <div>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold">{translations['Expense List']}</h2>
-          <span className="text-sm font-semibold text-gray-600">
-            {translations['Total']}: {expenses?.length || 0}
-          </span>
-        </div>
-        <ExpenseList expenses={expenses || []} />
-      </div>
-    </div>
-  </Layout>
-);
 }
 
 export default App;
