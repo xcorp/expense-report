@@ -33,43 +33,91 @@ function App() {
       const pdfBlob = await generatePdf(expenses);
       const pdfFile = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
 
-      // Web Share API
+      // 1) Preferred: share file objects (Chrome, etc.)
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           title: translations['Expense Report'],
-          text: 'Here is my expense report.', // This text is not visible to the user, so no need to translate
+          text: 'Here is my expense report.',
           files: [pdfFile],
         });
-      } else if ((navigator as any).share) {
-        // Some browsers (e.g. Firefox for Android) don't support sharing `File` objects,
-        // but may support sharing a URL. Try sharing a blob URL first before falling back.
-        const blobUrl = URL.createObjectURL(pdfFile);
+
+        // 2) If an upload endpoint is configured, upload and share the returned HTTPS URL.
+      } else if (import.meta.env.VITE_UPLOAD_ENDPOINT) {
+        const uploadEndpoint = import.meta.env.VITE_UPLOAD_ENDPOINT;
         try {
-          await (navigator as any).share({
-            title: translations['Expense Report'],
-            text: 'Here is my expense report.',
-            url: blobUrl,
-          });
-          // Give the share dialog a moment to use the blob URL, then revoke.
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+          const form = new FormData();
+          form.append('file', pdfFile);
+          const resp = await fetch(uploadEndpoint, { method: 'POST', body: form });
+          if (!resp.ok) throw new Error('Upload failed');
+          const data = await resp.json();
+          const publicUrl = data.url || data.file || data.link;
+          if (!publicUrl) throw new Error('No URL returned from upload');
+
+          // Try to share the public URL
+          if ((navigator as any).share) {
+            try {
+              await (navigator as any).share({
+                title: translations['Expense Report'],
+                text: 'Here is my expense report.',
+                url: publicUrl,
+              });
+            } catch (err) {
+              // User cancelled or share failed — copy URL to clipboard as a fallback
+              try {
+                await navigator.clipboard.writeText(publicUrl);
+                alert(translations['Report ready — link copied to clipboard.']);
+              } catch {
+                alert(translations['Report ready — couldn\'t copy link automatically.'] + ' ' + publicUrl);
+              }
+            }
+          } else {
+            // No share API — copy URL to clipboard or show it
+            try {
+              await navigator.clipboard.writeText(publicUrl);
+              alert(translations['Report ready — link copied to clipboard.']);
+            } catch {
+              alert(translations['Report ready — open this link:'] + ' ' + publicUrl);
+            }
+          }
         } catch (err) {
-          // If share fails or is cancelled, fallback to download
-          URL.revokeObjectURL(blobUrl);
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(pdfFile);
-          link.download = 'expense-report.pdf';
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          console.error('Upload/share fallback failed:', err);
+          // Fall back to blob-url share/download below
+          await tryBlobShareOrDownload(pdfFile);
         }
+
+        // 3) Next: try to share a blob URL (may open in-browser on some browsers)
+      } else if ((navigator as any).share) {
+        await tryBlobShareOrDownload(pdfFile);
+
+        // 4) Final fallback: download
       } else {
-        // Final fallback: download the file
         const link = document.createElement('a');
         link.href = URL.createObjectURL(pdfFile);
         link.download = 'expense-report.pdf';
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+      }
+
+      // helper: try blob URL share, then download
+      async function tryBlobShareOrDownload(file: File) {
+        const blobUrl = URL.createObjectURL(file);
+        try {
+          await (navigator as any).share({
+            title: translations['Expense Report'],
+            text: 'Here is my expense report.',
+            url: blobUrl,
+          });
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch (err) {
+          URL.revokeObjectURL(blobUrl);
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(file);
+          link.download = 'expense-report.pdf';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }
     } catch (error) {
       console.error(translations['Failed to generate or share report:'], error);
@@ -116,6 +164,37 @@ function App() {
       </div>
     </Layout>
   );
+}
+
+export default App;
+  };
+
+return (
+  <Layout
+    onGenerateReport={handleGenerateReport}
+    onClearAll={handleClearAll}
+    isReportGenerating={isReportGenerating}
+  >
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      <div>
+        <h2 className="text-2xl font-bold mb-4">{translations['Add Expense']}</h2>
+        <ExpenseForm />
+        <div className="mt-8">
+          <BankDetailsForm />
+        </div>
+      </div>
+      <div>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-2xl font-bold">{translations['Expense List']}</h2>
+          <span className="text-sm font-semibold text-gray-600">
+            {translations['Total']}: {expenses?.length || 0}
+          </span>
+        </div>
+        <ExpenseList expenses={expenses || []} />
+      </div>
+    </div>
+  </Layout>
+);
 }
 
 export default App;
