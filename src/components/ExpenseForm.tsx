@@ -11,6 +11,12 @@ const ExpenseForm: React.FC = () => {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [customCategory, setCustomCategory] = useState('');
+  // Driving-specific fields
+  const [isDriving, setIsDriving] = useState(false);
+  const [purpose, setPurpose] = useState('');
+  const [passengers, setPassengers] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
+  // cost is kept as string for the non-driving flow; for driving cost is computed
   const [cost, setCost] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,10 +50,19 @@ const ExpenseForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!description || !image || !cost) {
-      try { (window as any).__USE_TOAST__?.push({ message: translations['Description, cost, and image are required'], type: 'info' }); }
-      catch { alert(translations['Description, cost, and image are required']); }
-      return;
+    // Validation
+    if (isDriving) {
+      if (!purpose || !distanceKm || Number(distanceKm) <= 0) {
+        try { (window as any).__USE_TOAST__?.push({ message: translations['Distance (km)'] + ' ' + translations['is required'], type: 'info' }); }
+        catch { alert(translations['Distance (km)'] + ' ' + 'is required'); }
+        return;
+      }
+    } else {
+      if (!description || !image || !cost) {
+        try { (window as any).__USE_TOAST__?.push({ message: translations['Description, cost, and image are required'], type: 'info' }); }
+        catch { alert(translations['Description, cost, and image are required']); }
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -58,25 +73,50 @@ const ExpenseForm: React.FC = () => {
         maxWidthOrHeight: 1280,
         useWebWorker: true,
       };
-      const compressedImage = await imageCompression(image, options);
-      const imageBuffer = await compressedImage.arrayBuffer();
-      const imageType = compressedImage.type || image.type || 'image/jpeg';
+
+      let imageBuffer: ArrayBuffer | undefined = undefined;
+      let imageType: string | undefined = undefined;
+      if (image) {
+        const compressedImage = await imageCompression(image as File, options);
+        imageBuffer = await compressedImage.arrayBuffer();
+        imageType = compressedImage.type || image.type || undefined;
+      } else {
+        // no image provided (allowed for driving expenses)
+        imageBuffer = new ArrayBuffer(0);
+        imageType = undefined;
+      }
 
       const finalCategory = category === 'Other' ? customCategory : category;
 
-      await db.expenses.add({
-        description,
+      const expenseToAdd: any = {
         category: finalCategory,
-        cost: parseFloat(cost),
         image: imageBuffer,
         imageType,
         createdAt: new Date(),
-      });
+      };
+
+      if (isDriving) {
+        // For driving expenses the form shows purpose + distance; description is set to purpose
+        expenseToAdd.description = purpose;
+        expenseToAdd.purpose = purpose;
+        expenseToAdd.passengers = passengers;
+        expenseToAdd.distanceKm = Number(distanceKm);
+        expenseToAdd.cost = Number(distanceKm) * 2.5;
+      } else {
+        expenseToAdd.description = description;
+        expenseToAdd.cost = parseFloat(cost);
+      }
+
+      await db.expenses.add(expenseToAdd);
 
       setDescription('');
       setCategory(CATEGORIES[0]);
       setCustomCategory('');
+      setPurpose('');
+      setPassengers('');
+      setDistanceKm('');
       setCost('');
+      setIsDriving(false);
       setImage(null);
       // Clear the file input
       const fileInput = document.getElementById('image-input') as HTMLInputElement;
@@ -93,19 +133,83 @@ const ExpenseForm: React.FC = () => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-          {translations['Description']}
+      <div className="flex items-center space-x-4">
+        <label className="inline-flex items-center">
+          <input type="checkbox" checked={isDriving} onChange={(e) => setIsDriving(e.target.checked)} className="mr-2" />
+          <span className="text-sm">{translations['Driving']}</span>
         </label>
-        <input
-          type="text"
-          id="description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          required
-        />
       </div>
+
+      {isDriving ? (
+        <>
+          <div>
+            <label htmlFor="purpose" className="block text-sm font-medium text-gray-700">
+              {translations['Purpose of trip']}
+            </label>
+            <input
+              type="text"
+              id="purpose"
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="distance" className="block text-sm font-medium text-gray-700">
+              {translations['Distance (km)']}
+            </label>
+            <input
+              type="number"
+              id="distance"
+              value={distanceKm}
+              onChange={(e) => { setDistanceKm(e.target.value); setCost((Number(e.target.value) * 2.5 || 0).toFixed(2)); }}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              step="0.1"
+              min="0"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="passengers" className="block text-sm font-medium text-gray-700">
+              {translations['Passengers']}
+            </label>
+            <input
+              type="text"
+              id="passengers"
+              value={passengers}
+              onChange={(e) => setPassengers(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="driving-cost" className="block text-sm font-medium text-gray-700">
+              {translations['Cost']}
+            </label>
+            <input
+              type="text"
+              id="driving-cost"
+              value={cost}
+              readOnly
+              className="mt-1 block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm sm:text-sm"
+            />
+          </div>
+        </>
+      ) : (
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            {translations['Description']}
+          </label>
+          <input
+            type="text"
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            required
+          />
+        </div>
+      )}
       <div>
         <label htmlFor="cost" className="block text-sm font-medium text-gray-700">
           {translations['Cost']}
@@ -158,7 +262,7 @@ const ExpenseForm: React.FC = () => {
           capture="environment"
           onChange={handleImageChange}
           className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
-          required
+          required={!isDriving}
         />
       </div>
       <button

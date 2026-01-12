@@ -5,8 +5,12 @@ export interface Expense {
   description: string;
   category: string;
   cost: number;
-  image: ArrayBuffer;
+  image?: ArrayBuffer;
   imageType?: string;
+  // Optional driving fields
+  purpose?: string;
+  passengers?: string;
+  distanceKm?: number;
   createdAt: Date;
 }
 

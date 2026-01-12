@@ -1,19 +1,19 @@
 export const translations = {
   // General
-  'Expense Report': 'Utgiftsrapport',
+  'Expense Report': 'Utläggsredovisning för Utby NSF Scoutkår',
   'Date': 'Datum',
 
   // Layout
   'Generate Report': 'Generera Rapport',
   'Generating...': 'Genererar...',
-  'Clear All': 'Rensa allt',
+  'Clear All': 'Rensa alla utlägg',
   'Share Report': 'Dela rapport',
   'Download Report': 'Ladda ner rapport',
 
   // App
   'No expenses to report.': 'Inga utgifter att rapportera.',
   'Failed to generate or share report:': 'Det gick inte att generera eller dela rapporten:',
-  'Are you sure you want to delete ALL expenses? This action cannot be undone.': 'Är du säker på att du vill radera ALLA utgifter? Denna åtgärd kan inte ångras.',
+  'Are you sure you want to delete ALL expenses? This action cannot be undone.': 'Är du säker på att du vill radera ALLA utgifter? Bankuppgifter sparas. Denna åtgärd kan inte ångras.',
   'Failed to clear expenses:': 'Det gick inte att rensa utgifterna:',
   'Add Expense': 'Lägg till Utgift',
   'Expense List': 'Utgiftslista',
@@ -36,6 +36,13 @@ export const translations = {
   'Supplies': 'Material',
   'Marketing': 'Marknadsföring',
   'Other': 'Övrigt',
+  'Driving': 'Körning med egen bil',
+
+  // Driving fields
+  'Purpose of trip': 'Resans syfte',
+  'Passengers': 'Passagerare',
+  'Distance (km)': 'Distans (km)',
+  'is required': 'är obligatoriskt',
 
   // ExpenseItem
   'Delete': 'Radera',

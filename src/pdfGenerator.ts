@@ -19,7 +19,7 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
 
   // Add details
   doc.setFontSize(12);
-  doc.text(`${translations['Date']}: ${new Date().toLocaleDateString()}`, 14, yPos);
+  doc.text(`${translations['Date']}: ${new Date().toISOString().split('T')[0]}`, 14, yPos);
   yPos += 5;
 
   const reporterName = localStorage.getItem('reporterName');
@@ -47,7 +47,8 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
   }
 
 
-  // Create summary table
+  // Create summary table (description, category, cost). Driving details are appended
+  // into the description cell as extra lines so they appear as a sub-block under each expense.
   const tableColumn = [translations['Description'], translations['Category'], translations['Cost']];
   const tableRows: (string | number)[][] = [];
   let totalCost = 0;
@@ -55,8 +56,8 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
   expenses.forEach(expense => {
     totalCost += expense.cost;
     const expenseData = [
-      expense.description,
-      translations[expense.category as keyof typeof translations] || expense.category,
+      expense.description || '',
+      translations[expense.category as keyof typeof translations] || expense.category || '',
       new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(expense.cost),
     ];
     tableRows.push(expenseData);
@@ -66,12 +67,27 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
     head: [tableColumn],
     body: tableRows,
     startY: yPos + 5,
+    didParseCell: (data: any) => {
+      // Append driving details into the description cell (column 0) for body rows
+      if (data.section === 'body' && data.column.index === 0) {
+        const expense = expenses[data.row.index];
+        const extraLines: string[] = [];
+        if (expense.purpose) extraLines.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
+        if (expense.passengers) extraLines.push(`${translations['Passengers']}: ${expense.passengers}`);
+        if (expense.distanceKm !== undefined && expense.distanceKm !== null) extraLines.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+        if (extraLines.length > 0) {
+          // data.cell.text is an array of lines; append extraLines so row height expands
+          data.cell.text = data.cell.text.concat(extraLines.map((l) => l));
+        }
+      }
+    },
     didDrawPage: (data: any) => {
       // Footer
       let str = `${translations['Total']}: ` + new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(totalCost);
       doc.setFontSize(12);
       doc.text(str, data.settings.margin.left, doc.internal.pageSize.height - 10);
-    }
+    },
+    styles: { fontSize: 10 }
   });
 
   // Add receipt images
@@ -103,8 +119,15 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
           }
 
           doc.setFontSize(12);
-          const category = translations[expense.category as keyof typeof translations] || expense.category;
-          doc.text(`${expense.description} - ${category}`, 14, y);
+          const category = translations[expense.category as keyof typeof translations] || expense.category || '';
+          // Build a detail line that includes driving fields when present
+          const details: string[] = [];
+          if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
+          if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
+          if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+          const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+
+          doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
           y += 5;
 
           doc.addImage(url, 'JPEG', 15, y, width, height);
