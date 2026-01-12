@@ -19,7 +19,7 @@ const BankDetailsForm: React.FC = () => {
     localStorage.setItem('bankName', bankName);
     localStorage.setItem('clearingNumber', clearingNumber);
     localStorage.setItem('accountNumber', accountNumber);
-    alert(translations['Bank details saved!']);
+    try { (window as any).__USE_TOAST__?.push({ message: translations['Bank details saved!'], type: 'success' }); } catch { alert(translations['Bank details saved!']); }
   };
 
   return (

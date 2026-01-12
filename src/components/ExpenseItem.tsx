@@ -10,7 +10,7 @@ interface ExpenseItemProps {
 const ExpenseItem: React.FC<ExpenseItemProps> = ({ expense, onDelete }) => {
   const imageUrl = useMemo(() => {
     if (expense.image) {
-      const blob = new Blob([expense.image], { type: 'image/jpeg' });
+      const blob = new Blob([expense.image], { type: expense.imageType || 'image/jpeg' });
       return URL.createObjectURL(blob);
     }
     return '';

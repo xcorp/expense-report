@@ -27,7 +27,7 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
     doc.text(`${translations['Reporter Name']}: ${reporterName}`, 14, yPos);
     yPos += 5;
   }
-  
+
   const bankName = localStorage.getItem('bankName');
   if (bankName) {
     doc.text(`${translations['Bank Name']}: ${bankName}`, 14, yPos);
@@ -85,9 +85,9 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
       if (!expense.image) continue;
 
       const img = new Image();
-      const blob = new Blob([expense.image], { type: 'image/jpeg' });
+      const blob = new Blob([expense.image], { type: expense.imageType || 'image/jpeg' });
       const url = URL.createObjectURL(blob);
-      
+
       await new Promise<void>(resolve => {
         img.onload = () => {
           const imgWidth = img.width;
@@ -101,7 +101,7 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
             doc.addPage();
             y = 20;
           }
-          
+
           doc.setFontSize(12);
           const category = translations[expense.category as keyof typeof translations] || expense.category;
           doc.text(`${expense.description} - ${category}`, 14, y);
@@ -109,7 +109,7 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
 
           doc.addImage(url, 'JPEG', 15, y, width, height);
           y += height + 10;
-          
+
           URL.revokeObjectURL(url);
           resolve();
         };

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { db } from '../db';
 import imageCompression from 'browser-image-compression';
+// heic2any converts HEIC/HEIF images to web-friendly formats (JPEG/PNG)
+// we import dynamically to avoid bundling when not needed
 import { translations } from '../i18n';
 
 const CATEGORIES = ['Food', 'Travel', 'Supplies', 'Marketing', 'Other'];
@@ -15,14 +17,36 @@ const ExpenseForm: React.FC = () => {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setImage(e.target.files[0]);
+      const file = e.target.files[0];
+
+      // If the file is HEIC/HEIF, try to convert it to JPEG using heic2any
+      const isHeic = /heic|heif/i.test(file.type) || /\.heic$/i.test(file.name);
+      if (isHeic) {
+        import('heic2any')
+          .then((heic2any) => (heic2any && (heic2any as any).default) ? (heic2any as any).default({ blob: file, toType: 'image/jpeg' }) : (heic2any as any)({ blob: file, toType: 'image/jpeg' }))
+          .then((convertedBlob: Blob) => {
+            // Convert blob to File so downstream code works the same
+            const jpegFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' });
+            setImage(jpegFile);
+          })
+          .catch((err) => {
+            console.error('HEIC conversion failed:', err);
+            // use toast if available, else fallback to alert
+            try { (window as any).__USE_TOAST__?.push({ message: 'Failed to process HEIC image. Please convert to JPEG and try again.', type: 'error' }); }
+            catch { alert('Failed to process HEIC image. Please convert to JPEG and try again.'); }
+            setImage(null);
+          });
+      } else {
+        setImage(file);
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description || !image || !cost) {
-      alert(translations['Description, cost, and image are required']);
+      try { (window as any).__USE_TOAST__?.push({ message: translations['Description, cost, and image are required'], type: 'info' }); }
+      catch { alert(translations['Description, cost, and image are required']); }
       return;
     }
 
@@ -36,6 +60,7 @@ const ExpenseForm: React.FC = () => {
       };
       const compressedImage = await imageCompression(image, options);
       const imageBuffer = await compressedImage.arrayBuffer();
+      const imageType = compressedImage.type || image.type || 'image/jpeg';
 
       const finalCategory = category === 'Other' ? customCategory : category;
 
@@ -44,6 +69,7 @@ const ExpenseForm: React.FC = () => {
         category: finalCategory,
         cost: parseFloat(cost),
         image: imageBuffer,
+        imageType,
         createdAt: new Date(),
       });
 
@@ -54,11 +80,12 @@ const ExpenseForm: React.FC = () => {
       setImage(null);
       // Clear the file input
       const fileInput = document.getElementById('image-input') as HTMLInputElement;
-      if(fileInput) fileInput.value = '';
+      if (fileInput) fileInput.value = '';
 
     } catch (error) {
       console.error(translations['Failed to add expense:'], error);
-      alert(translations['Failed to add expense:']);
+      try { (window as any).__USE_TOAST__?.push({ message: translations['Failed to add expense:'], type: 'error' }); }
+      catch { alert(translations['Failed to add expense:']); }
     } finally {
       setIsSubmitting(false);
     }
@@ -128,6 +155,7 @@ const ExpenseForm: React.FC = () => {
           type="file"
           id="image-input"
           accept="image/*"
+          capture="environment"
           onChange={handleImageChange}
           className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
           required

@@ -8,14 +8,14 @@ interface ExpenseListProps {
 }
 
 const ExpenseList: React.FC<ExpenseListProps> = ({ expenses }) => {
-  
+
   const handleDelete = async (id: number) => {
     if (confirm(translations['Are you sure you want to delete this expense?'])) {
       try {
         await db.expenses.delete(id);
       } catch (error) {
         console.error(translations['Failed to delete expense:'], error);
-        alert(translations['Failed to delete expense:']);
+        try { (window as any).__USE_TOAST__?.push({ message: translations['Failed to delete expense:'], type: 'error' }); } catch { alert(translations['Failed to delete expense:']); }
       }
     }
   };

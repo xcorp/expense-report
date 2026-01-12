@@ -6,11 +6,12 @@ export interface Expense {
   category: string;
   cost: number;
   image: ArrayBuffer;
+  imageType?: string;
   createdAt: Date;
 }
 
 export class MySubClassedDexie extends Dexie {
-  expenses!: Table<Expense>; 
+  expenses!: Table<Expense>;
 
   constructor() {
     super('expenseReport');
