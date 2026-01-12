@@ -7,14 +7,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { generatePdf } from './pdfGenerator';
 import { translations } from './i18n';
+import { useToast } from './components/ToastProvider';
 
 function App() {
   const expenses = useLiveQuery(() => db.expenses.orderBy('createdAt').toArray());
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const toast = useToast();
 
   const handleGenerateReport = async () => {
     if (!expenses || expenses.length === 0) {
-      alert(translations['No expenses to report.']);
+      toast.push({ message: translations['No expenses to report.'], type: 'info' });
       return;
     }
 
@@ -24,7 +26,7 @@ function App() {
     const accountNumber = localStorage.getItem('accountNumber');
 
     if (!reporterName || !bankName || !clearingNumber || !accountNumber) {
-      alert(translations['Please save your bank details and reporter name before generating the report.']);
+      toast.push({ message: translations['Please save your bank details and reporter name before generating the report.'], type: 'info' });
       return;
     }
 
@@ -65,18 +67,18 @@ function App() {
               // User cancelled or share failed — copy URL to clipboard as a fallback
               try {
                 await navigator.clipboard.writeText(publicUrl);
-                alert('Report ready — link copied to clipboard.');
+                toast.push({ message: 'Report ready — link copied to clipboard.', type: 'success' });
               } catch {
-                alert('Report ready — couldn\'t copy link automatically. ' + publicUrl);
+                toast.push({ message: 'Report ready — couldn\'t copy link automatically. ' + publicUrl, type: 'info' });
               }
             }
           } else {
             // No share API — copy URL to clipboard or show it
             try {
               await navigator.clipboard.writeText(publicUrl);
-              alert('Report ready — link copied to clipboard.');
+              toast.push({ message: 'Report ready — link copied to clipboard.', type: 'success' });
             } catch {
-              alert('Report ready — open this link: ' + publicUrl);
+              toast.push({ message: 'Report ready — open this link: ' + publicUrl, type: 'info' });
             }
           }
         } catch (err) {
@@ -121,7 +123,7 @@ function App() {
       }
     } catch (error) {
       console.error(translations['Failed to generate or share report:'], error);
-      alert(translations['Failed to generate or share report:']);
+      toast.push({ message: translations['Failed to generate or share report:'], type: 'error' });
     } finally {
       setIsReportGenerating(false);
     }
@@ -133,7 +135,7 @@ function App() {
         await db.expenses.clear();
       } catch (error) {
         console.error(translations['Failed to clear expenses:'], error);
-        alert(translations['Failed to clear expenses:']);
+        toast.push({ message: translations['Failed to clear expenses:'], type: 'error' });
       }
     }
   };
