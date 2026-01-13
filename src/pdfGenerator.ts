@@ -100,6 +100,24 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
     for (const expense of expenses) {
       if (!expense.image) continue;
 
+      // TODO: Implement full PDF rendering using pdfjs-dist if visual display of PDF content is required.
+      // For now, display a placeholder for PDF receipts.
+      if (expense.imageType === 'application/pdf') {
+        doc.setFontSize(12);
+        const category = translations[expense.category as keyof typeof translations] || expense.category || '';
+        const details: string[] = [];
+        if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
+        if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
+        if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+        const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+
+        doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
+        y += 5;
+        doc.text(`[PDF Receipt: ${expense.description || 'No Description'}]`, 15, y);
+        y += 15; // Adjust y position after placeholder
+        continue;
+      }
+
       const img = new Image();
       const blob = new Blob([expense.image], { type: expense.imageType || 'image/jpeg' });
       const url = URL.createObjectURL(blob);
@@ -130,7 +148,8 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
           doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
           y += 5;
 
-          doc.addImage(url, 'JPEG', 15, y, width, height);
+          // Use expense.imageType for addImage, fallback to 'JPEG' if undefined
+          doc.addImage(url, expense.imageType && expense.imageType.split('/')[1].toUpperCase(), 15, y, width, height);
           y += height + 10;
 
           URL.revokeObjectURL(url);
