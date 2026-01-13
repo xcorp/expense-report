@@ -5,9 +5,10 @@ import { translations } from '../i18n';
 
 interface ExpenseListProps {
   expenses: Expense[];
+  onEdit?: (expense: Expense) => void;
 }
 
-const ExpenseList: React.FC<ExpenseListProps> = ({ expenses }) => {
+const ExpenseList: React.FC<ExpenseListProps> = ({ expenses, onEdit }) => {
 
   const handleDelete = async (id: number) => {
     if (confirm(translations['Are you sure you want to delete this expense?'])) {
@@ -27,7 +28,12 @@ const ExpenseList: React.FC<ExpenseListProps> = ({ expenses }) => {
   return (
     <div className="space-y-4">
       {expenses.map((expense) => (
-        <ExpenseItem key={expense.id} expense={expense} onDelete={handleDelete} />
+        <ExpenseItem
+          key={expense.id}
+          expense={expense}
+          onDelete={handleDelete}
+          onEdit={onEdit}
+        />
       ))}
     </div>
   );

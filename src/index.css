@@ -1,3 +1,36 @@
+/* Consistent form label styling for all forms */
+.form-label {
+    display: block;
+    font-size: 0.875rem;
+    /* text-sm */
+    font-weight: 500;
+    /* font-medium */
+    color: #8798b4;
+    /* text-gray-700 */
+}
+
+.dark .form-label {
+    color: #d1d5db;
+    /* text-gray-300 */
+}
+
+/* Hide number input spinners while keeping numeric keyboard on mobile */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+    background-color: #18181b;
+    color: #f3f4f6;
+}

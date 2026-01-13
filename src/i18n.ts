@@ -23,12 +23,17 @@ export const translations = {
   // ExpenseForm
   'Description': 'Beskrivning',
   'Cost': 'Kostnad',
-  'Category': 'Kategori',
-  'Receipt Image': 'Kvitto Bild',
+  'Category': 'Budgetpost',
+  'Receipt Image': 'Kvitto/Bild',
   'Adding...': 'Lägger till...',
+  'Saving...': 'Sparar...',
+  'Save Changes': 'Spara ändringar',
+  'Cancel': 'Avbryt',
+  'Edit Expense': 'Redigera utlägg',
   'Description, cost, and image are required': 'Beskrivning, kostnad och bild är obligatoriska',
   'Failed to add expense:': 'Det gick inte att lägga till utlägg:',
   'Enter category': 'Ange kategori',
+  'Cost center': 'Kostnadsställe',
 
   // Categories
   'Food': 'Mat',
@@ -46,11 +51,12 @@ export const translations = {
 
   // ExpenseItem
   'Delete': 'Radera',
+  'Edit': 'Redigera',
 
   // ExpenseList
-  'No expenses added yet.': 'Inga utgifter tillagda än.',
-  'Are you sure you want to delete this expense?': 'Är du säker på att du vill radera denna utgift?',
-  'Failed to delete expense:': 'Det gick inte att radera utgiften:',
+  'No expenses added yet.': 'Inga utlägg tillagda än.',
+  'Are you sure you want to delete this expense?': 'Är du säker på att du vill radera detta utlägg?',
+  'Failed to delete expense:': 'Det gick inte att radera utlägget:',
 
   // BankDetailsForm
   'Bank Details': 'Bankuppgifter',

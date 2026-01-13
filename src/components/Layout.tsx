@@ -14,8 +14,8 @@ const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadRepo
     <div className="container mx-auto p-4 max-w-4xl">
       <header className="mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-4xl font-bold text-gray-800">{translations['Expense Report']}</h1>
-          <div className="space-x-2">
+          <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100">{translations['Expense Report']}</h1>
+          <div className="space-x-2 flex items-center">
             <button
               onClick={onShareReport}
               disabled={isReportGenerating}
@@ -36,6 +36,7 @@ const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadRepo
             >
               {translations['Clear All']}
             </button>
+            {/* <ThemeToggle /> */}
           </div>
         </div>
       </header>

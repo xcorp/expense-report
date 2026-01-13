@@ -9,9 +9,12 @@ import { generatePdf } from './pdfGenerator';
 import { translations } from './i18n';
 import { useToast } from './components/ToastProvider';
 
+import { Expense } from './db';
 function App() {
   const expenses = useLiveQuery(() => db.expenses.orderBy('createdAt').toArray());
   const [isReportGenerating, setIsReportGenerating] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const toast = useToast();
 
   const handleGenerateReport = async () => {
@@ -32,7 +35,7 @@ function App() {
 
     setIsReportGenerating(true);
     try {
-      const pdfBlob = await generatePdf(expenses);
+      const pdfBlob = await generatePdf(expenses, reportDate);
       const pdfFile = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
 
       // 1) Preferred: share file objects (Chrome, etc.)
@@ -147,7 +150,7 @@ function App() {
 
     setIsReportGenerating(true);
     try {
-      const pdfBlob = await generatePdf(expenses);
+      const pdfBlob = await generatePdf(expenses, reportDate);
       const file = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
 
       // Open PDF in a new tab so the user can view it themselves (and download from viewer)
@@ -184,20 +187,51 @@ function App() {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
-          <h2 className="text-2xl font-bold mb-4">{translations['Add Expense']}</h2>
-          <ExpenseForm />
+          <h2 className="text-2xl font-bold mb-4">{editingExpense ? (translations['Edit Expense'] || 'Edit Expense') : translations['Add Expense']}</h2>
+          <ExpenseForm
+            expense={editingExpense}
+            onEditDone={() => setEditingExpense(null)}
+          />
           <div className="mt-8">
             <BankDetailsForm />
           </div>
         </div>
         <div>
-          <div className="flex justify-between items-center mb-4">
-
-            <span className="text-sm font-semibold text-gray-600">
-              {translations['Total']}: {expenses?.length || 0}
-            </span>
+          <div className="mb-4">
+            <label htmlFor="reportDate" className="form-label">
+              {translations['Date']}
+            </label>
+            <div className="flex gap-2 mt-1">
+              <input
+                type="date"
+                id="reportDate"
+                value={reportDate}
+                onChange={(e) => setReportDate(e.target.value)}
+                className="block flex-1 rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+              />
+              <button
+                onClick={() => setReportDate(new Date().toISOString().split('T')[0])}
+                className="px-3 py-2 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title="Reset to today"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-          <ExpenseList expenses={expenses || []} />
+          <div className="flex justify-between items-center mb-4">
+            <div className="text-sm font-semibold text-gray-600 dark:text-gray-400">
+              <div>{translations['Total']}: {expenses?.length || 0} {(expenses?.length || 0) === 1 ? 'expense' : 'expenses'}</div>
+              <div className="text-lg text-gray-900 dark:text-gray-100 mt-1">
+                {new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(
+                  expenses?.reduce((sum, exp) => sum + exp.cost, 0) || 0
+                )}
+              </div>
+            </div>
+          </div>
+          <ExpenseList
+            expenses={expenses || []}
+            onEdit={setEditingExpense}
+          />
         </div>
       </div>
     </Layout>

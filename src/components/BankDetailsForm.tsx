@@ -23,11 +23,11 @@ const BankDetailsForm: React.FC = () => {
   };
 
   return (
-    <div className="p-4 border border-gray-200 rounded-md">
+    <div className="p-4 bg-gray-50 dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-700 rounded-md text-gray-900 dark:text-gray-100">
       <h3 className="text-xl font-bold mb-4">{translations['Bank Details']}</h3>
       <div className="space-y-4">
         <div>
-          <label htmlFor="reporterName" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="reporterName" className="form-label">
             {translations['Reporter Name']}
           </label>
           <input
@@ -35,11 +35,11 @@ const BankDetailsForm: React.FC = () => {
             id="reporterName"
             value={reporterName}
             onChange={(e) => setReporterName(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
           />
         </div>
         <div>
-          <label htmlFor="bankName" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="bankName" className="form-label">
             {translations['Bank Name']}
           </label>
           <input
@@ -47,11 +47,11 @@ const BankDetailsForm: React.FC = () => {
             id="bankName"
             value={bankName}
             onChange={(e) => setBankName(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
           />
         </div>
         <div>
-          <label htmlFor="clearingNumber" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="clearingNumber" className="form-label">
             {translations['Clearing Number']}
           </label>
           <input
@@ -59,11 +59,11 @@ const BankDetailsForm: React.FC = () => {
             id="clearingNumber"
             value={clearingNumber}
             onChange={(e) => setClearingNumber(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
           />
         </div>
         <div>
-          <label htmlFor="accountNumber" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="accountNumber" className="form-label">
             {translations['Account Number']}
           </label>
           <input
@@ -71,12 +71,12 @@ const BankDetailsForm: React.FC = () => {
             id="accountNumber"
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value)}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
           />
         </div>
         <button
           onClick={handleSave}
-          className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+          className="inline-flex justify-center rounded-md border border-indigo-700 bg-indigo-700 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
         >
           {translations['Save Details']}
         </button>
