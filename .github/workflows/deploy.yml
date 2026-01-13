@@ -17,9 +17,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          # This line enables caching for npm automatically
+          cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        # 'npm ci' is generally preferred for CI/CD as it's faster and
+        # ensures a clean install based exactly on your lockfile
+        run: npm ci
 
       - name: Set Vite base for Pages build
         run: |
