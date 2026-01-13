@@ -2,6 +2,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Expense } from './db';
 import { translations } from './i18n';
+import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+// Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
+// served from the same origin and avoids CORS or dynamic-import issues.
+GlobalWorkerOptions.workerSrc = "/expense-report/pdf.worker.min.js";
 
 // Extend jsPDF with the autoTable plugin
 interface jsPDFWithAutoTable extends jsPDF {
@@ -100,22 +104,78 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
     for (const expense of expenses) {
       if (!expense.image) continue;
 
-      // TODO: Implement full PDF rendering using pdfjs-dist if visual display of PDF content is required.
-      // For now, display a placeholder for PDF receipts.
       if (expense.imageType === 'application/pdf') {
-        doc.setFontSize(12);
-        const category = translations[expense.category as keyof typeof translations] || expense.category || '';
-        const details: string[] = [];
-        if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
-        if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
-        if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
-        const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+        try {
+          const pdfData = new Uint8Array(expense.image as ArrayBuffer);
+          const loadingTask = getDocument({ data: pdfData });
+          const pdf = await loadingTask.promise;
 
-        doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
-        y += 5;
-        doc.text(`[PDF Receipt: ${expense.description || 'No Description'}]`, 15, y);
-        y += 15; // Adjust y position after placeholder
-        continue;
+          // Render the first page of the PDF as an image
+          const page = await pdf.getPage(1); // Get the first page
+
+          const viewport = page.getViewport({ scale: 1.5 }); // Adjust scale as needed for quality/size
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+
+          if (context) {
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            const renderContext = {
+              canvasContext: context,
+              viewport: viewport,
+            };
+            // cast to any to satisfy differing pdfjs types across versions
+            await (page as any).render(renderContext).promise;
+
+            const dataUrl = canvas.toDataURL('image/png'); // Convert canvas to PNG data URL
+
+            // Add expense description/details before the rendered PDF page image
+            doc.setFontSize(12);
+            const category = translations[expense.category as keyof typeof translations] || expense.category || '';
+            const details: string[] = [];
+            if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
+            if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
+            if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+            const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+            doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
+            y += 5;
+
+            // Calculate image dimensions to fit within PDF page margins
+            const pdfPageWidth = doc.internal.pageSize.getWidth();
+            const pdfPageHeight = doc.internal.pageSize.getHeight();
+            const margin = 15;
+            const availableWidth = pdfPageWidth - (margin * 2);
+
+            let imgDisplayWidth = availableWidth;
+            let imgDisplayHeight = (canvas.height / canvas.width) * availableWidth;
+
+            // If the image is too tall, scale it down to fit the page height
+            if (y + imgDisplayHeight + margin > pdfPageHeight) {
+              doc.addPage();
+              y = 20; // Reset y position for new page
+            }
+
+            doc.addImage(dataUrl, 'PNG', margin, y, imgDisplayWidth, imgDisplayHeight);
+            y += imgDisplayHeight + 10; // Move y position after adding the image
+          }
+        } catch (error) {
+          console.error(`Failed to render PDF for ${expense.description}:`, error);
+          // Fallback to placeholder if PDF rendering fails
+          doc.setFontSize(12);
+          const category = translations[expense.category as keyof typeof translations] || expense.category || '';
+          const details: string[] = [];
+          if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
+          if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
+          if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+          const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+
+          doc.text(`${expense.description || ''} - ${category}${detailLine}`, 14, y);
+          y += 5;
+          doc.text(`[Failed to render PDF: ${expense.description || 'No Description'}]`, 15, y);
+          y += 15; // Adjust y position after placeholder
+        }
+        continue; // Continue to the next expense after PDF handling
       }
 
       const img = new Image();
@@ -149,7 +209,8 @@ export const generatePdf = async (expenses: Expense[]): Promise<Blob> => {
           y += 5;
 
           // Use expense.imageType for addImage, fallback to 'JPEG' if undefined
-          doc.addImage(url, expense.imageType && expense.imageType.split('/')[1].toUpperCase(), 15, y, width, height);
+          const imgFormat = (expense.imageType && expense.imageType.split('/')[1].toUpperCase()) || 'JPEG';
+          doc.addImage(url, imgFormat, 15, y, width, height);
           y += height + 10;
 
           URL.revokeObjectURL(url);

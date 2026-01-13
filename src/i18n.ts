@@ -11,12 +11,12 @@ export const translations = {
   'Download Report': 'Ladda ner rapport',
 
   // App
-  'No expenses to report.': 'Inga utgifter att rapportera.',
+  'No expenses to report.': 'Inga utlägg att rapportera.',
   'Failed to generate or share report:': 'Det gick inte att generera eller dela rapporten:',
-  'Are you sure you want to delete ALL expenses? This action cannot be undone.': 'Är du säker på att du vill radera ALLA utgifter? Bankuppgifter sparas. Denna åtgärd kan inte ångras.',
-  'Failed to clear expenses:': 'Det gick inte att rensa utgifterna:',
-  'Add Expense': 'Lägg till Utgift',
-  'Expense List': 'Utgiftslista',
+  'Are you sure you want to delete ALL expenses? This action cannot be undone.': 'Är du säker på att du vill radera ALLA utlägg? Bankuppgifter sparas. Denna åtgärd kan inte ångras.',
+  'Failed to clear expenses:': 'Det gick inte att rensa utgläggen:',
+  'Add Expense': 'Lägg till utlägg',
+  'Expense List': 'Utläggslista',
   'Total': 'Totalt',
   'Please save your bank details and reporter name before generating the report.': 'Vänligen spara dina bankuppgifter och rapportörnamn innan du genererar rapporten.',
 
@@ -27,7 +27,7 @@ export const translations = {
   'Receipt Image': 'Kvitto Bild',
   'Adding...': 'Lägger till...',
   'Description, cost, and image are required': 'Beskrivning, kostnad och bild är obligatoriska',
-  'Failed to add expense:': 'Det gick inte att lägga till utgift:',
+  'Failed to add expense:': 'Det gick inte att lägga till utlägg:',
   'Enter category': 'Ange kategori',
 
   // Categories
