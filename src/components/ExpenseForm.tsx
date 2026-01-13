@@ -77,9 +77,14 @@ const ExpenseForm: React.FC = () => {
       let imageBuffer: ArrayBuffer | undefined = undefined;
       let imageType: string | undefined = undefined;
       if (image) {
-        const compressedImage = await imageCompression(image as File, options);
-        imageBuffer = await compressedImage.arrayBuffer();
-        imageType = compressedImage.type || image.type || undefined;
+        if (image.type === 'application/pdf') {
+          imageBuffer = await image.arrayBuffer();
+          imageType = image.type;
+        } else {
+          const compressedImage = await imageCompression(image as File, options);
+          imageBuffer = await compressedImage.arrayBuffer();
+          imageType = compressedImage.type || image.type || undefined;
+        }
       } else {
         // no image provided (allowed for driving expenses)
         imageBuffer = new ArrayBuffer(0);
@@ -258,7 +263,7 @@ const ExpenseForm: React.FC = () => {
         <input
           type="file"
           id="image-input"
-          accept="image/*"
+          accept="image/*,application/pdf"
           capture="environment"
           onChange={handleImageChange}
           className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
