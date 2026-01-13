@@ -20,13 +20,22 @@ const BankDetailsForm: React.FC = () => {
     setAccountNumber(localStorage.getItem('accountNumber') || '');
   }, []);
 
-  const isAllFilled = reporterName.trim() && bankName.trim() && clearingNumber.trim() && accountNumber.trim();
-
-  useEffect(() => {
-    if (isAllFilled) {
-      setIsCollapsed(true);
+  const handleNumberInput = (value: string, maxDigits: number) => {
+    // Filter to allow only numbers, spaces, and dashes
+    const filtered = value.replace(/[^0-9\s\-]/g, '');
+    // Count actual digits (not spaces or dashes)
+    const digitCount = filtered.replace(/[^\d]/g, '').length;
+    // Only allow if digit count is within limit
+    if (digitCount <= maxDigits) {
+      return filtered;
     }
-  }, [isAllFilled]);
+    // If over limit, remove characters from the end until we're at the limit
+    let result = filtered;
+    while (result.replace(/[^\d]/g, '').length > maxDigits) {
+      result = result.slice(0, -1);
+    }
+    return result;
+  };
 
   const handleSave = () => {
     const empty: string[] = [];
@@ -52,6 +61,7 @@ const BankDetailsForm: React.FC = () => {
     localStorage.setItem('bankName', bankName);
     localStorage.setItem('clearingNumber', clearingNumber);
     localStorage.setItem('accountNumber', accountNumber);
+    setIsCollapsed(true);
     try { (window as any).__USE_TOAST__?.push({ message: translations['Bank details saved!'], type: 'success' }); } catch { alert(translations['Bank details saved!']); }
   };
 
@@ -108,7 +118,8 @@ const BankDetailsForm: React.FC = () => {
               id="clearingNumber"
               value={clearingNumber}
               onChange={(e) => {
-                setClearingNumber(e.target.value);
+                const filtered = handleNumberInput(e.target.value, 5);
+                setClearingNumber(filtered);
                 setInvalidFields(invalidFields.filter(f => f !== 'clearingNumber'));
               }}
               className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('clearingNumber') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
@@ -124,7 +135,8 @@ const BankDetailsForm: React.FC = () => {
               id="accountNumber"
               value={accountNumber}
               onChange={(e) => {
-                setAccountNumber(e.target.value);
+                const filtered = handleNumberInput(e.target.value, 15);
+                setAccountNumber(filtered);
                 setInvalidFields(invalidFields.filter(f => f !== 'accountNumber'));
               }}
               className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('accountNumber') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
