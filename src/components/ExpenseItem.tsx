@@ -25,8 +25,8 @@ const ExpenseItem: React.FC<ExpenseItemProps> = ({ expense, onDelete, onEdit }) 
 
   return (
     <>
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <div className="flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border-b border-gray-200 gap-3 sm:gap-0">
+        <div className="flex items-center min-w-0">
           {isDrivingExpense ? (
             <div className="w-16 h-16 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-md mr-4">
               <svg className="w-8 h-8 text-blue-600 dark:text-blue-300" fill="currentColor" viewBox="0 0 24 24">
@@ -70,8 +70,8 @@ const ExpenseItem: React.FC<ExpenseItemProps> = ({ expense, onDelete, onEdit }) 
           )}
           {/* <p className="text-xs text-gray-400">{expense.createdAt.toLocaleDateString()}</p> */}
         </div>
-        <div className="text-right flex flex-col gap-2 items-end">
-          <p className="font-semibold text-lg">
+        <div className="w-full sm:w-auto text-left sm:text-right flex sm:flex-col justify-between sm:justify-start gap-2 sm:items-end">
+          <p className="font-semibold text-sm sm:text-lg">
             {new Intl.NumberFormat('sv-SE', { style: 'currency', currency: 'SEK' }).format(expense.cost)}
           </p>
           <div className="flex gap-2">

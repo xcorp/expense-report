@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { db, Expense } from '../db';
 import imageCompression from 'browser-image-compression';
 import { translations } from '../i18n';
@@ -23,6 +23,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const [image, setImage] = useState<File | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+
+  const descriptionRef = useRef<HTMLInputElement>(null);
+  const purposeRef = useRef<HTMLInputElement>(null);
+  const passengersRef = useRef<HTMLInputElement>(null);
+  const distanceRef = useRef<HTMLInputElement>(null);
+  const costRef = useRef<HTMLInputElement>(null);
+  const customCategoryRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (expense && expense.image) {
@@ -72,14 +80,39 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const empty: string[] = [];
+
     if (isDriving) {
-      if (!purpose || !distanceKm || Number(distanceKm) <= 0) {
-        try { (window as any).__USE_TOAST__?.push({ message: translations['Distance (km)'] + ' ' + translations['is required'], type: 'info' }); }
-        catch { alert(translations['Distance (km)'] + ' ' + 'is required'); }
-        setIsSubmitting(false);
-        return;
-      }
+      if (!purpose || purpose === defaultPurposeText || purpose.trim() === '') empty.push('purpose');
+      if (!passengers || passengers.trim() === '') empty.push('passengers');
+      if (!distanceKm || Number(distanceKm) <= 0) empty.push('distance');
+    } else {
+      if (!description || description === defaultDescriptionText || description.trim() === '') empty.push('description');
+      if (!cost || parseFloat(cost) <= 0) empty.push('cost');
     }
+
+    if (!category || (category === 'Övrigt' && (!customCategory || customCategory.trim() === ''))) {
+      empty.push('category');
+    }
+
+    if (empty.length > 0) {
+      setInvalidFields(empty);
+      try { (window as any).__USE_TOAST__?.push({ message: 'Vänligen fyll i alla obligatoriska fält', type: 'info' }); } catch { alert('Vänligen fyll i alla obligatoriska fält'); }
+
+      // Focus the first empty field
+      if (empty[0] === 'description') descriptionRef.current?.focus();
+      else if (empty[0] === 'purpose') purposeRef.current?.focus();
+      else if (empty[0] === 'passengers') passengersRef.current?.focus();
+      else if (empty[0] === 'distance') distanceRef.current?.focus();
+      else if (empty[0] === 'cost') costRef.current?.focus();
+      else if (empty[0] === 'category') customCategoryRef.current?.focus();
+
+      setIsSubmitting(false);
+      return;
+    }
+
+    setInvalidFields([]);
 
     let imageBuffer: ArrayBuffer | undefined = undefined;
     let imageType: string | undefined = undefined;
@@ -157,7 +190,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   ) : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-gray-50 dark:bg-gray-800 p-8 rounded-xl shadow-lg border-2 border-gray-300 dark:border-gray-700 max-w-md mx-auto text-gray-900 dark:text-gray-100">
+    <form onSubmit={handleSubmit} className="space-y-6 bg-gray-50 dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-lg border-2 border-gray-300 dark:border-gray-700 max-w-md mx-auto text-gray-900 dark:text-gray-100">
       <div className="flex items-center space-x-4">
         <label className="inline-flex items-center">
           <input type="checkbox" checked={isDriving} onChange={(e) => setIsDriving(e.target.checked)} className="mr-2" />
@@ -171,10 +204,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
               {translations['Purpose of trip']}
             </label>
             <input
+              ref={purposeRef}
               type="text"
               id="purpose"
               value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
+              onChange={(e) => {
+                setPurpose(e.target.value);
+                setInvalidFields(invalidFields.filter(f => f !== 'purpose'));
+              }}
               onFocus={(e) => {
                 if (e.target.value === defaultPurposeText) {
                   setPurpose('');
@@ -186,8 +223,24 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
                 }
               }}
               placeholder="T.ex Distriksårmöte eller Kärran Höstläger"
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('purpose') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
               required
+            />
+          </div>
+          <div>
+            <label htmlFor="passengers" className="form-label">
+              {translations['Passengers']}
+            </label>
+            <input
+              ref={passengersRef}
+              type="text"
+              id="passengers"
+              value={passengers}
+              onChange={(e) => {
+                setPassengers(e.target.value);
+                setInvalidFields(invalidFields.filter(f => f !== 'passengers'));
+              }}
+              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('passengers') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
             />
           </div>
           <div>
@@ -195,11 +248,16 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
               {translations['Distance (km)']}
             </label>
             <input
+              ref={distanceRef}
               type="number"
               id="distance"
               value={distanceKm}
-              onChange={(e) => { setDistanceKm(e.target.value); setCost((Number(e.target.value) * DRIVING_COST_MULTIPLIER || 0).toFixed(2)); }}
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+              onChange={(e) => {
+                setDistanceKm(e.target.value);
+                setCost((Number(e.target.value) * DRIVING_COST_MULTIPLIER || 0).toFixed(2));
+                setInvalidFields(invalidFields.filter(f => f !== 'distance'));
+              }}
+              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('distance') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
               step="0.1"
               min="0"
               required
@@ -225,10 +283,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
               {translations['Description']}
             </label>
             <input
+              ref={descriptionRef}
               type="text"
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setInvalidFields(invalidFields.filter(f => f !== 'description'));
+              }}
               onFocus={(e) => {
                 if (e.target.value === defaultDescriptionText) {
                   setDescription('');
@@ -240,7 +302,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
                 }
               }}
               placeholder="T.ex Matlagningsmöte eller Ved"
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('description') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
               required
             />
           </div>
@@ -249,11 +311,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
               {translations['Cost']}
             </label>
             <input
+              ref={costRef}
               type="number"
               id="cost"
               value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+              onChange={(e) => {
+                setCost(e.target.value);
+                setInvalidFields(invalidFields.filter(f => f !== 'cost'));
+              }}
+              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('cost') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
               required
               step="0.01"
               min="0"
@@ -282,11 +348,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
         </select>
         {category === 'Övrigt' && (
           <input
+            ref={customCategoryRef}
             type="text"
             placeholder={translations['Enter category']}
             value={customCategory}
-            onChange={(e) => setCustomCategory(e.target.value)}
-            className="mt-2 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 sm:text-sm"
+            onChange={(e) => {
+              setCustomCategory(e.target.value);
+              setInvalidFields(invalidFields.filter(f => f !== 'category'));
+            }}
+            className={`mt-2 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('category') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
             required
           />
         )}

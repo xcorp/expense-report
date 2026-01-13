@@ -18,7 +18,7 @@ export const translations = {
   'Add Expense': 'Lägg till utlägg',
   'Expense List': 'Utläggslista',
   'Total': 'Totalt',
-  'Please save your bank details and reporter name before generating the report.': 'Vänligen spara dina bankuppgifter och rapportörnamn innan du genererar rapporten.',
+  'Please save your bank details and reporter name before generating the report.': 'Vänligen spara dina bankuppgifter och namn innan du genererar rapporten.',
 
   // ExpenseForm
   'Description': 'Beskrivning',
@@ -60,7 +60,7 @@ export const translations = {
 
   // BankDetailsForm
   'Bank Details': 'Bankuppgifter',
-  'Reporter Name': 'Rapportör',
+  'Reporter Name': 'Redovisad av',
   'Bank Name': 'Banknamn',
   'Clearing Number': 'Clearingnummer',
   'Account Number': 'Kontonummer',

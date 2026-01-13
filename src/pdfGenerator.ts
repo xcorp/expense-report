@@ -117,8 +117,8 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
     },
   });
 
-  // Add receipt images
-  if (expenses.some(e => e.image)) {
+  // Add receipt images only if there are actual images
+  if (expenses.some(e => e.image && e.image.byteLength > 0)) {
     doc.addPage();
     doc.setFontSize(18);
     doc.text(translations['Receipts'], 14, 20);

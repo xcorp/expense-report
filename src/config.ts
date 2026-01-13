@@ -7,6 +7,7 @@ export const CATEGORIES = [
     'Vildfåglarna',
     'Skogslöparna',
     'Ledare',
+    'Demokratiska möten',
 ];
 
 export const DRIVING_COST_MULTIPLIER = 2.5; // Cost per km for driving expenses

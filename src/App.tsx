@@ -187,14 +187,14 @@ function App() {
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
+          <div className="mb-8">
+            <BankDetailsForm />
+          </div>
           <h2 className="text-2xl font-bold mb-4">{editingExpense ? (translations['Edit Expense'] || 'Edit Expense') : translations['Add Expense']}</h2>
           <ExpenseForm
             expense={editingExpense}
             onEditDone={() => setEditingExpense(null)}
           />
-          <div className="mt-8">
-            <BankDetailsForm />
-          </div>
         </div>
         <div>
           <div className="mb-4">
