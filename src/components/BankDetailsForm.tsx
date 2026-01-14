@@ -7,17 +7,27 @@ const BankDetailsForm: React.FC = () => {
   const [clearingNumber, setClearingNumber] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true); // Start collapsed
   const reporterNameRef = useRef<HTMLInputElement>(null);
   const bankNameRef = useRef<HTMLInputElement>(null);
   const clearingNumberRef = useRef<HTMLInputElement>(null);
   const accountNumberRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setReporterName(localStorage.getItem('reporterName') || '');
-    setBankName(localStorage.getItem('bankName') || '');
-    setClearingNumber(localStorage.getItem('clearingNumber') || '');
-    setAccountNumber(localStorage.getItem('accountNumber') || '');
+    const savedReporterName = localStorage.getItem('reporterName') || '';
+    const savedBankName = localStorage.getItem('bankName') || '';
+    const savedClearingNumber = localStorage.getItem('clearingNumber') || '';
+    const savedAccountNumber = localStorage.getItem('accountNumber') || '';
+
+    setReporterName(savedReporterName);
+    setBankName(savedBankName);
+    setClearingNumber(savedClearingNumber);
+    setAccountNumber(savedAccountNumber);
+
+    // Expand if any field is empty
+    if (!savedReporterName || !savedBankName || !savedClearingNumber || !savedAccountNumber) {
+      setIsCollapsed(false);
+    }
   }, []);
 
   const handleNumberInput = (value: string, maxDigits: number) => {
