@@ -3,6 +3,7 @@ import { db, Expense } from '../db';
 import imageCompression from 'browser-image-compression';
 import { translations } from '../i18n';
 import { CATEGORIES, DRIVING_COST_MULTIPLIER, GOOGLE_MAPS_API_KEY } from '../config';
+import Tesseract from 'tesseract.js';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -30,6 +31,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const [calculatingDistance, setCalculatingDistance] = useState(false);
   const [distanceCalculationError, setDistanceCalculationError] = useState<string | null>(null);
   const [stopSuggestions, setStopSuggestions] = useState<Record<number, Array<{ name: string; placeId: string }>>>({});
+  const [analyzeReceiptLoading, setAnalyzeReceiptLoading] = useState(false);
+  const [analyzeReceiptError, setAnalyzeReceiptError] = useState<string | null>(null);
 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const purposeRef = useRef<HTMLInputElement>(null);
@@ -166,6 +169,62 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       setDistanceCalculationError(error instanceof Error ? error.message : 'Fel vid beräkning av avstånd');
     } finally {
       setCalculatingDistance(false);
+    }
+  };
+
+  const analyzeReceipt = async () => {
+    if (!image && !existingImageUrl) {
+      setAnalyzeReceiptError('Vänligen ladda upp en bild först');
+      return;
+    }
+
+    setAnalyzeReceiptLoading(true);
+    setAnalyzeReceiptError(null);
+
+    try {
+      const imageSource = image ? image : existingImageUrl;
+
+      const result = await (Tesseract as any).recognize(imageSource, 'swe', {
+        logger: () => { } // Silent progress
+      });
+
+      const text = result.data.text;
+
+      // Look for Swedish currency patterns (total/sum)
+      const totalPatterns = [
+        /totalt[:\s]+([0-9]+[.,][0-9]{2})/gi,
+        /summa[:\s]+([0-9]+[.,][0-9]{2})/gi,
+        /total[:\s]+([0-9]+[.,][0-9]{2})/gi,
+        /att betala[:\s]+([0-9]+[.,][0-9]{2})/gi,
+      ];
+
+      let foundAmount: string | null = null;
+
+      for (const pattern of totalPatterns) {
+        const match = text.match(pattern);
+        if (match) {
+          // Extract the number part
+          const numberMatch = match[0].match(/([0-9]+[.,][0-9]{2})/);
+          if (numberMatch) {
+            foundAmount = numberMatch[1].replace(',', '.');
+            break;
+          }
+        }
+      }
+
+      if (foundAmount) {
+        setCost(foundAmount);
+        setAnalyzeReceiptError(null);
+        try { (window as any).__USE_TOAST__?.push({ message: `Hittade belopp: ${foundAmount} kr`, type: 'success' }); }
+        catch { alert(`Hittade belopp: ${foundAmount} kr`); }
+      } else {
+        setAnalyzeReceiptError('Kunde inte hitta något belopp på kvittot. Vänligen ange manuellt.');
+      }
+    } catch (error) {
+      setAnalyzeReceiptError('Fel vid analys av kvitto. Vänligen ange belopp manuellt.');
+      console.error('OCR error:', error);
+    } finally {
+      setAnalyzeReceiptLoading(false);
     }
   };
 
@@ -737,6 +796,19 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
           required={!isDriving && !image && !(expense && expense.image)}
         />
         {imagePreview}
+        {(image || existingImageUrl) && !isDriving && (
+          <button
+            type="button"
+            onClick={analyzeReceipt}
+            disabled={analyzeReceiptLoading}
+            className="mt-2 w-full py-2 px-3 rounded-md bg-amber-600 dark:bg-amber-700 text-white hover:bg-amber-700 dark:hover:bg-amber-800 disabled:bg-gray-500 disabled:cursor-not-allowed text-sm font-medium transition"
+          >
+            {analyzeReceiptLoading ? 'Analyserar kvitto...' : 'Analysera kvitto'}
+          </button>
+        )}
+        {analyzeReceiptError && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">{analyzeReceiptError}</p>
+        )}
       </div>
       <div className="flex gap-3 mt-4">
         <button
