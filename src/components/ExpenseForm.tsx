@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { db, Expense } from '../db';
 import imageCompression from 'browser-image-compression';
 import { translations } from '../i18n';
-import { CATEGORIES, DRIVING_COST_MULTIPLIER } from '../config';
+import { CATEGORIES, DRIVING_COST_MULTIPLIER, GOOGLE_MAPS_API_KEY } from '../config';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -24,6 +24,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  const [useRouteCalculator, setUseRouteCalculator] = useState(false);
+  const [stops, setStops] = useState<string[]>(['', '']);
+  const [calculatedDistanceKm, setCalculatedDistanceKm] = useState('');
+  const [calculatingDistance, setCalculatingDistance] = useState(false);
+  const [distanceCalculationError, setDistanceCalculationError] = useState<string | null>(null);
+  const [stopSuggestions, setStopSuggestions] = useState<Record<number, Array<{ name: string; placeId: string }>>>({});
 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const purposeRef = useRef<HTMLInputElement>(null);
@@ -31,6 +37,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const distanceRef = useRef<HTMLInputElement>(null);
   const costRef = useRef<HTMLInputElement>(null);
   const customCategoryRef = useRef<HTMLInputElement>(null);
+  const debounceTimersRef = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const directionsServiceRef = useRef<any>(null);
+  const autocompleteServiceRef = useRef<any>(null);
 
   React.useEffect(() => {
     if (expense && expense.image) {
@@ -53,7 +62,179 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
     setDistanceKm(expense?.distanceKm ? String(expense.distanceKm) : '');
     setCost(expense ? String(expense.cost) : '');
     setImage(null);
+
+    // Load stops if they exist
+    if (expense?.stops && expense.stops.length > 0) {
+      setStops(expense.stops);
+      setUseRouteCalculator(true);
+      setCalculatedDistanceKm(expense.calculatedDistanceKm ? String(expense.calculatedDistanceKm) : '');
+    } else {
+      setStops(['', '']);
+      setUseRouteCalculator(false);
+      setCalculatedDistanceKm('');
+    }
   }, [expense]);
+
+  // Cleanup debounce timers on unmount
+  React.useEffect(() => {
+    return () => {
+      Object.values(debounceTimersRef.current).forEach(timer => clearTimeout(timer));
+    };
+  }, []);
+
+  // Load Google Maps API
+  React.useEffect(() => {
+    if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.length === 0) {
+      return;
+    }
+
+    const loadGoogleMapsAPI = async () => {
+      // DirectionsService doesn't need a map
+      directionsServiceRef.current = new (window as any).google.maps.DirectionsService();
+
+      // AutocompleteService doesn't need a map either
+      autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompleteService();
+    };
+
+    // Check if script is already loaded
+    if ((window as any).google?.maps) {
+      loadGoogleMapsAPI();
+    } else {
+      // Load the Google Maps script
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,directions`;
+      script.async = true;
+      script.onload = loadGoogleMapsAPI;
+      document.head.appendChild(script);
+    }
+  }, [GOOGLE_MAPS_API_KEY]);
+
+  const calculateRouteDistance = async () => {
+    if (stops.some(stop => !stop.trim())) {
+      setDistanceCalculationError('Vänligen fyll i alla adresser');
+      return;
+    }
+
+    setCalculatingDistance(true);
+    setDistanceCalculationError(null);
+
+    try {
+      if (!directionsServiceRef.current) {
+        throw new Error('Google Maps API är inte laddat');
+      }
+
+      // Build waypoints array
+      const waypoints = stops.slice(1, -1).map(stop => ({
+        location: stop,
+        stopover: true
+      }));
+
+      const request = {
+        origin: stops[0],
+        destination: stops[stops.length - 1],
+        waypoints: waypoints.length > 0 ? waypoints : undefined,
+        travelMode: (window as any).google.maps.TravelMode.DRIVING
+      };
+
+      const result = await new Promise((resolve, reject) => {
+        directionsServiceRef.current.route(request, (result: any, status: any) => {
+          if (status === (window as any).google.maps.DirectionsStatus.OK) {
+            resolve(result);
+          } else if (status === (window as any).google.maps.DirectionsStatus.ZERO_RESULTS) {
+            reject(new Error('Kunde inte hitta en rutt för de angivna adresserna'));
+          } else {
+            reject(new Error(`Misslyckades att beräkna rutten: ${status}`));
+          }
+        });
+      });
+
+      // Sum all legs to get total distance (in meters)
+      const totalDistanceMeters = (result as any).routes[0].legs.reduce((sum: number, leg: any) => sum + leg.distance.value, 0);
+      // Convert to km and round to nearest whole km
+      const distanceInKm = Math.round(totalDistanceMeters / 1000).toString();
+
+      setCalculatedDistanceKm(distanceInKm);
+      // Only set distanceKm if it's empty (user hasn't entered custom distance)
+      if (!distanceKm) {
+        setDistanceKm(distanceInKm);
+      }
+      // Use custom distance if entered, otherwise use calculated
+      const finalDistance = distanceKm || distanceInKm;
+      setCost((Number(finalDistance) * DRIVING_COST_MULTIPLIER || 0).toFixed(2));
+      setDistanceCalculationError(null);
+    } catch (error) {
+      setDistanceCalculationError(error instanceof Error ? error.message : 'Fel vid beräkning av avstånd');
+    } finally {
+      setCalculatingDistance(false);
+    }
+  };
+
+  const moveStop = (index: number, direction: 'up' | 'down') => {
+    const newStops = [...stops];
+    if (direction === 'up' && index > 0) {
+      [newStops[index], newStops[index - 1]] = [newStops[index - 1], newStops[index]];
+      setStops(newStops);
+    } else if (direction === 'down' && index < newStops.length - 1) {
+      [newStops[index], newStops[index + 1]] = [newStops[index + 1], newStops[index]];
+      setStops(newStops);
+    }
+  };
+
+  const handleAddressInput = (index: number, value: string) => {
+    const newStops = [...stops];
+    newStops[index] = value;
+    setStops(newStops);
+    setDistanceCalculationError(null);
+
+    // Clear previous timer for this index
+    if (debounceTimersRef.current[index]) {
+      clearTimeout(debounceTimersRef.current[index]);
+    }
+
+    // Only search if value is long enough
+    if (value.length > 2) {
+      // Set new timer
+      debounceTimersRef.current[index] = setTimeout(() => {
+        try {
+          if (!autocompleteServiceRef.current) {
+            return; // Silently skip if AutocompleteService not ready
+          }
+
+          const request = {
+            input: value,
+            componentRestrictions: { country: 'se' }
+          };
+
+          autocompleteServiceRef.current.getPlacePredictions(request, (predictions: any, status: any) => {
+            if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && predictions) {
+              const suggestions = predictions.map((prediction: any) => ({
+                name: prediction.description,
+                placeId: prediction.place_id
+              }));
+
+              setStopSuggestions(prev => ({
+                ...prev,
+                [index]: suggestions
+              }));
+            } else {
+              // Clear suggestions on error or zero results
+              setStopSuggestions(prev => ({
+                ...prev,
+                [index]: []
+              }));
+            }
+          });
+        } catch (error) {
+          // Silently fail on suggestions
+        }
+      }, 300);
+    } else {
+      setStopSuggestions(prev => ({
+        ...prev,
+        [index]: []
+      }));
+    }
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -148,6 +329,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       expenseToAdd.passengers = passengers;
       expenseToAdd.distanceKm = Number(distanceKm);
       expenseToAdd.cost = Number(distanceKm) * DRIVING_COST_MULTIPLIER;
+      if (useRouteCalculator && stops.length > 0) {
+        expenseToAdd.stops = stops;
+        if (calculatedDistanceKm) {
+          expenseToAdd.calculatedDistanceKm = Number(calculatedDistanceKm);
+        }
+      }
     } else {
       expenseToAdd.description = description;
       expenseToAdd.cost = parseFloat(cost);
@@ -167,6 +354,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       setPurpose('');
       setPassengers('');
       setDistanceKm('');
+      setCalculatedDistanceKm('');
       setCost('');
       setIsDriving(false);
       setImage(null);
@@ -244,24 +432,198 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
             />
           </div>
           <div>
-            <label htmlFor="distance" className="form-label">
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRouteCalculator(false);
+                  setDistanceCalculationError(null);
+                }}
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${!useRouteCalculator
+                  ? 'bg-indigo-700 text-white hover:bg-indigo-800'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
+              >
+                Manuell
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUseRouteCalculator(true);
+                  setDistanceCalculationError(null);
+                }}
+                className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${useRouteCalculator
+                  ? 'bg-indigo-700 text-white hover:bg-indigo-800'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-300 dark:hover:bg-gray-600'
+                  }`}
+              >
+                Rutt-kalkylator
+              </button>
+            </div>
+            <label className="form-label block mb-2">
               {translations['Distance (km)']}
             </label>
-            <input
-              ref={distanceRef}
-              type="number"
-              id="distance"
-              value={distanceKm}
-              onChange={(e) => {
-                setDistanceKm(e.target.value);
-                setCost((Number(e.target.value) * DRIVING_COST_MULTIPLIER || 0).toFixed(2));
-                setInvalidFields(invalidFields.filter(f => f !== 'distance'));
-              }}
-              className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('distance') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
-              step="0.1"
-              min="0"
-              required
-            />
+
+            {useRouteCalculator ? (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                  Ange minst 2 stopp (startpunkt och destination). <span className="italic">Tips: 3 stopp om du återvänder samma väg</span>
+                </p>
+                {stops.map((stop, index) => (
+                  <div key={index}>
+                    <div className="flex items-center gap-2">
+                      <label htmlFor={`stop-${index}`} className="text-xs text-gray-600 dark:text-gray-400 flex-1">
+                        {index === 0 ? 'Startpunkt' : index === stops.length - 1 ? 'Destination' : `Stopp ${index}`}
+                      </label>
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => moveStop(index, 'up')}
+                          className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                          title="Flytta upp"
+                        >
+                          ↑
+                        </button>
+                      )}
+                      {index < stops.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => moveStop(index, 'down')}
+                          className="text-xs text-indigo-700 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                          title="Flytta ner"
+                        >
+                          ↓
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        id={`stop-${index}`}
+                        type="text"
+                        value={stop}
+                        onChange={(e) => handleAddressInput(index, e.target.value)}
+                        placeholder={index === 0 ? 'T.ex. Hemmet' : index === stops.length - 1 ? 'T.ex. Hemmet' : `Stopp ${index}`}
+                        className="mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 border-gray-300 dark:border-gray-700"
+                      />
+                      {stopSuggestions[index] && stopSuggestions[index].length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border-2 border-gray-300 dark:border-gray-700 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                          {stopSuggestions[index].map((suggestion, suggestionIndex) => (
+                            <button
+                              key={suggestionIndex}
+                              type="button"
+                              onClick={() => {
+                                const newStops = [...stops];
+                                newStops[index] = suggestion.name;
+                                setStops(newStops);
+                                setStopSuggestions(prev => ({
+                                  ...prev,
+                                  [index]: []
+                                }));
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm text-gray-900 dark:text-gray-100 hover:bg-indigo-100 dark:hover:bg-indigo-900 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                            >
+                              {suggestion.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setStops([...stops, ''])}
+                  className="text-sm text-indigo-700 dark:text-indigo-400 hover:underline mt-2"
+                >
+                  + Lägg till stopp
+                </button>
+                {stops.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setStops(stops.slice(0, -1))}
+                    className="text-sm text-red-700 dark:text-red-400 hover:underline mt-1 ml-2"
+                  >
+                    - Ta bort sista stopp
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={calculateRouteDistance}
+                  disabled={calculatingDistance}
+                  className="w-full mt-3 py-2 px-3 rounded-md bg-indigo-700 text-white hover:bg-indigo-800 disabled:bg-gray-500 disabled:cursor-not-allowed text-sm font-medium"
+                >
+                  {calculatingDistance ? 'Beräknar...' : 'Beräkna avstånd'}
+                </button>
+                {distanceCalculationError && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-2">{distanceCalculationError}</p>
+                )}
+                {calculatedDistanceKm && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-green-600 dark:text-green-400">
+                      Beräknat avstånd: {calculatedDistanceKm} km
+                    </p>
+                    <div className="border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden">
+                      <img
+                        src={`https://maps.googleapis.com/maps/api/staticmap?size=600x300&markers=color:green|label:A|${encodeURIComponent(stops[0])}&markers=color:red|label:B|${encodeURIComponent(stops[stops.length - 1])}${stops.slice(1, -1).map((stop, idx) => `&markers=color:blue|label:${idx + 2}|${encodeURIComponent(stop)}`).join('')}&path=color:0x0000ff|weight:3${stops.map(stop => `|${encodeURIComponent(stop)}`).join('')}&key=${GOOGLE_MAPS_API_KEY}`}
+                        alt="Route map"
+                        className="w-full h-auto"
+                      />
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps/dir/${stops.map(stop => encodeURIComponent(stop)).join('/')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Öppna i Google Maps
+                    </a>
+                    <div>
+                      <label htmlFor="customDistance" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Anpassat avstånd (valfritt)
+                      </label>
+                      <input
+                        ref={distanceRef}
+                        type="number"
+                        id="customDistance"
+                        value={distanceKm}
+                        onChange={(e) => {
+                          setDistanceKm(e.target.value);
+                          const finalDistance = e.target.value || calculatedDistanceKm;
+                          setCost((Number(finalDistance) * DRIVING_COST_MULTIPLIER || 0).toFixed(2));
+                          setInvalidFields(invalidFields.filter(f => f !== 'distance'));
+                        }}
+                        placeholder={`Standard: ${calculatedDistanceKm} km`}
+                        className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('distance') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
+                      />
+                      {distanceKm && distanceKm !== calculatedDistanceKm && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Använder anpassat avstånd för beräkning
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <input
+                ref={distanceRef}
+                type="number"
+                id="distance"
+                value={distanceKm}
+                onChange={(e) => {
+                  setDistanceKm(e.target.value);
+                  setCost((Number(e.target.value) * DRIVING_COST_MULTIPLIER || 0).toFixed(2));
+                  setInvalidFields(invalidFields.filter(f => f !== 'distance'));
+                }}
+                className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('distance') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
+                step="0.1"
+                min="0"
+                required
+              />
+            )}
           </div>
           <div>
             <label htmlFor="cost" className="form-label">

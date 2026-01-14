@@ -11,6 +11,8 @@ export interface Expense {
   purpose?: string;
   passengers?: string;
   distanceKm?: number;
+  calculatedDistanceKm?: number;
+  stops?: string[];
   createdAt: Date;
 }
 

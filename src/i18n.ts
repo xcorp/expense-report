@@ -47,6 +47,7 @@ export const translations = {
   'Purpose of trip': 'Resans syfte',
   'Passengers': 'Passagerare',
   'Distance (km)': 'Distans (km)',
+  'Route': 'Rutt',
   'is required': 'är obligatoriskt',
 
   // ExpenseItem

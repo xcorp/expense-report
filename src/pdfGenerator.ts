@@ -48,8 +48,19 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
     if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
     if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
     if (expense.distanceKm !== undefined) {
-      details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+      // Show calculated distance if it exists and differs from actual distance
+      if (expense.calculatedDistanceKm && expense.calculatedDistanceKm !== expense.distanceKm) {
+        details.push(`${translations['Distance (km)']}: ${expense.distanceKm} (Beräknat: ${expense.calculatedDistanceKm})`);
+      } else {
+        details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
+      }
       details.push(`${expense.distanceKm} km × ${DRIVING_COST_MULTIPLIER} kr/km`);
+    }
+    if (expense.stops && expense.stops.length > 0) {
+      details.push(`${translations['Route']}:`);
+      expense.stops.forEach((stop, idx) => {
+        details.push(`  ${idx + 1}. ${stop}`);
+      });
     }
 
     const rowData = [
