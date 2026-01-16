@@ -60,13 +60,14 @@ export const translations = {
   'Failed to delete expense:': 'Det gick inte att radera utlägget:',
 
   // BankDetailsForm
-  'Bank Details': 'Bankuppgifter',
+  'Bank Details': 'Inställningar',
   'Reporter Name': 'Redovisad av',
   'Bank Name': 'Banknamn',
   'Clearing Number': 'Clearingnummer',
   'Account Number': 'Kontonummer',
   'Save Details': 'Spara uppgifter',
-  'Bank details saved!': 'Bankuppgifter sparade!',
+  'Bank details saved!': 'Inställningar sparade!',
+  'Default Category': 'Standardkategori',
 
   // PDF Generator
   'Receipts': 'Kvitton',

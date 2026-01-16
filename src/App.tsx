@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Layout from './components/Layout';
 import ExpenseForm from './components/ExpenseForm';
 import ExpenseList from './components/ExpenseList';
-import BankDetailsForm from './components/BankDetailsForm';
+import SettingsForm from './components/SettingsForm';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { generatePdf } from './pdfGenerator';
@@ -188,7 +188,7 @@ function App() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
           <div className="mb-8">
-            <BankDetailsForm />
+            <SettingsForm />
           </div>
           <h2 className="text-2xl font-bold mb-4">{editingExpense ? (translations['Edit Expense'] || 'Edit Expense') : translations['Add Expense']}</h2>
           <ExpenseForm

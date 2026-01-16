@@ -33,6 +33,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const [stopSuggestions, setStopSuggestions] = useState<Record<number, Array<{ name: string; placeId: string }>>>({});
   const [analyzeReceiptLoading, setAnalyzeReceiptLoading] = useState(false);
   const [analyzeReceiptError, setAnalyzeReceiptError] = useState<string | null>(null);
+  const [isHeicImageSelected, setIsHeicImageSelected] = useState(false);
+  const [, setOcrWordsState] = useState<Array<{ text: string; bbox?: any }>>([]);
+  const [ocrMatchedLinesState, setOcrMatchedLinesState] = useState<string[]>([]);
 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const purposeRef = useRef<HTMLInputElement>(null);
@@ -85,30 +88,73 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
     };
   }, []);
 
+  // Global debugging hooks to capture crashes/unhandled rejections (helps remote debugging on mobile)
+  React.useEffect(() => {
+    const onError = (evt: any) => {
+      try {
+        console.error('GLOBAL ERROR:', evt.message || evt);
+      } catch (e) { }
+    };
+    const onRejection = (evt: any) => {
+      try {
+        console.error('UNHANDLED REJECTION:', evt && evt.reason ? evt.reason : evt);
+      } catch (e) { }
+    };
+
+    window.addEventListener('error', onError as any);
+    window.addEventListener('unhandledrejection', onRejection as any);
+
+    // If a file input click preceded a reload/crash, surface it in console on next load
+    const fileClicked = sessionStorage.getItem('fileInputClickedAt');
+    if (fileClicked) {
+      console.log('DEBUG: detected previous file input click at', fileClicked);
+      // clear so it doesn't persist
+      sessionStorage.removeItem('fileInputClickedAt');
+    }
+
+    return () => {
+      window.removeEventListener('error', onError as any);
+      window.removeEventListener('unhandledrejection', onRejection as any);
+    };
+  }, []);
+
   // Load Google Maps API
   React.useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY.length === 0) {
       return;
     }
 
-    const loadGoogleMapsAPI = async () => {
-      // DirectionsService doesn't need a map
+    const loadGoogleMapsAPI = () => {
+      // DirectionsService is part of the core API
       directionsServiceRef.current = new (window as any).google.maps.DirectionsService();
 
-      // AutocompleteService doesn't need a map either
-      autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompleteService();
+      // Use the new AutocompletionService (the new non-deprecated API)
+      if ((window as any).google?.maps?.places?.AutocompletionService) {
+        autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompletionService();
+        console.log('AutocompletionService initialized');
+      } else if ((window as any).google?.maps?.places?.AutocompleteService) {
+        // Fallback for older API versions
+        autocompleteServiceRef.current = new (window as any).google.maps.places.AutocompleteService();
+        console.log('AutocompleteService (legacy) initialized');
+      }
     };
 
     // Check if script is already loaded
     if ((window as any).google?.maps) {
       loadGoogleMapsAPI();
     } else {
-      // Load the Google Maps script
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places,directions`;
-      script.async = true;
-      script.onload = loadGoogleMapsAPI;
-      document.head.appendChild(script);
+      // Load the Google Maps script only if not already present
+      if (!document.querySelector(`script[src*="maps.googleapis.com"]`)) {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = loadGoogleMapsAPI;
+        script.onerror = () => {
+          console.error('Failed to load Google Maps API');
+        };
+        document.head.appendChild(script);
+      }
     }
   }, [GOOGLE_MAPS_API_KEY]);
 
@@ -182,21 +228,148 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
     setAnalyzeReceiptError(null);
 
     try {
-      const imageSource = image ? image : existingImageUrl;
 
-      const result = await (Tesseract as any).recognize(imageSource, 'swe', {
-        logger: () => { } // Silent progress
+      // Prepare OCR input. If a HEIC file was selected, convert it now (deferred) to avoid heavy work during file selection.
+      let imageSource: File | string | null = image ? image : existingImageUrl;
+      console.log('OCR: starting analyzeReceipt', { imageProvided: !!image, imageSource, isHeicImageSelected });
+
+      if (image && isHeicImageSelected) {
+        try {
+          console.log('OCR: converting HEIC image (deferred)');
+          const heic2any = await import('heic2any');
+          const convertFunc = heic2any && (heic2any as any).default ? (heic2any as any).default : (heic2any as any);
+          const convertedBlob: Blob = await convertFunc({ blob: image, toType: 'image/jpeg' });
+          const jpegFile = new File([convertedBlob], (image as File).name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' });
+          imageSource = jpegFile;
+          // Update state so UI reflects converted image for any subsequent actions
+          setImage(jpegFile);
+          setIsHeicImageSelected(false);
+          console.log('OCR: HEIC conversion completed', { name: jpegFile.name, size: jpegFile.size });
+        } catch (convErr) {
+          console.warn('OCR: HEIC conversion failed during analyzeReceipt', convErr);
+        }
+      }
+
+      if (image) {
+        try {
+          console.log('OCR: file metadata', { name: image.name, type: image.type, size: image.size });
+          const objUrl = URL.createObjectURL(image);
+          await new Promise<void>((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              console.log('OCR: image dimensions', { width: img.naturalWidth, height: img.naturalHeight });
+              URL.revokeObjectURL(objUrl);
+              resolve();
+            };
+            img.onerror = () => {
+              console.warn('OCR: failed to read image dimensions');
+              URL.revokeObjectURL(objUrl);
+              resolve();
+            };
+            img.src = objUrl;
+          });
+        } catch (metaErr) {
+          console.warn('OCR: error getting image metadata', metaErr);
+        }
+      } else if (existingImageUrl && typeof existingImageUrl === 'string') {
+        console.log('OCR: using existingImageUrl', existingImageUrl);
+        try {
+          const resp = await fetch(existingImageUrl);
+          const blob = await resp.blob();
+          console.log('OCR: fetched blob for existingImageUrl', { type: blob.type, size: blob.size });
+          const objUrl = URL.createObjectURL(blob);
+          await new Promise<void>((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              console.log('OCR: existing image dimensions', { width: img.naturalWidth, height: img.naturalHeight });
+              URL.revokeObjectURL(objUrl);
+              resolve();
+            };
+            img.onerror = () => {
+              console.warn('OCR: failed to read existing image dimensions');
+              URL.revokeObjectURL(objUrl);
+              resolve();
+            };
+            img.src = objUrl;
+          });
+        } catch (fetchErr) {
+          console.warn('OCR: could not fetch existingImageUrl for metadata', fetchErr);
+        }
+      }
+
+      // Use a logger so Tesseract progress and debug messages appear in console (useful for remote debug)
+      const logger = (m: any) => {
+        try { console.log('TESS:', m); } catch (e) { }
+      };
+
+      // Use PSM and whitelist to bias recognition to digits/punctuation for totals
+      const result = await (Tesseract as any).recognize(imageSource, 'swe+eng', {
+        logger,
+        config: ['--psm', '6', '-c', 'tessedit_char_whitelist=0123456789.,']
       });
 
       const text = result.data.text;
 
-      // Look for Swedish currency patterns (total/sum)
+      // Patterns used to detect totals (used for filtering displayed lines and amount detection)
       const totalPatterns = [
-        /totalt[:\s]+([0-9]+[.,][0-9]{2})/gi,
-        /summa[:\s]+([0-9]+[.,][0-9]{2})/gi,
-        /total[:\s]+([0-9]+[.,][0-9]{2})/gi,
-        /att betala[:\s]+([0-9]+[.,][0-9]{2})/gi,
+        /totalt[:\s]+([0-9]+[.,][0-9]{2})/i,
+        /summa[:\s]+([0-9]+[.,][0-9]{2})/i,
+        /total[:\s]+([0-9]+[.,][0-9]{2})/i,
+        /att betala[:\s]+([0-9]+[.,][0-9]{2})/i,
+        /subtotal[:\s]+([0-9]+[.,][0-9]{2})/i,
       ];
+
+      // Build structured outputs and persist to state for UI inspection
+      let ocrLines: string[] = [];
+      try {
+        if (result.data && Array.isArray((result.data as any).lines) && (result.data as any).lines.length > 0) {
+          ocrLines = (result.data as any).lines.map((ln: any) => (ln && ln.text ? String(ln.text).trim() : '')).filter((s: string) => s.length > 0);
+        } else if (typeof text === 'string') {
+          ocrLines = text.split(/\r?\n/).map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+        }
+      } catch (e) {
+        console.warn('OCR: failed to build lines array', e);
+      }
+
+      const ocrWords = Array.isArray((result.data as any).words) ? (result.data as any).words.map((w: any) => ({ text: w.text, bbox: w.bbox })) : [];
+
+      console.log('OCR lines:', ocrLines);
+      console.log('OCR words:', ocrWords);
+
+      // (full OCR lines available in console) — not stored to avoid unused-state warnings
+      setOcrWordsState(ocrWords);
+
+      // Filter lines to only those that look like totals and expose them separately for the UI
+      // Track if we auto-applied a detected total to avoid duplicate notifications later
+      let autoApplied = false;
+      try {
+        const matched = ocrLines.filter((ln) => totalPatterns.some((p) => p.test(ln)));
+        console.log('OCR matched lines (totals):', matched);
+        if (matched.length === 1) {
+          // Auto-select single detected total
+          const match = matched[0].match(/([0-9]+[.,][0-9]{2})/);
+          if (match) {
+            const amt = match[1].replace(',', '.');
+            setCost(amt);
+            autoApplied = true;
+            try { (window as any).__USE_TOAST__?.push({ message: `Hittade belopp: ${amt} kr`, type: 'success' }); }
+            catch { /* ignore */ }
+            // clear matched lines since we've auto-applied
+            setOcrMatchedLinesState([]);
+          } else {
+            setOcrMatchedLinesState(matched);
+          }
+        } else {
+          setOcrMatchedLinesState(matched);
+        }
+      } catch (e) {
+        console.warn('OCR: failed to compute matched lines', e);
+        setOcrMatchedLinesState([]);
+      }
+
+
+
+      // Look for Swedish currency patterns (total/sum) — reuse `totalPatterns` declared above
 
       let foundAmount: string | null = null;
 
@@ -215,8 +388,11 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       if (foundAmount) {
         setCost(foundAmount);
         setAnalyzeReceiptError(null);
-        try { (window as any).__USE_TOAST__?.push({ message: `Hittade belopp: ${foundAmount} kr`, type: 'success' }); }
-        catch { alert(`Hittade belopp: ${foundAmount} kr`); }
+        // Only notify if we didn't already auto-apply the detected total
+        if (!autoApplied) {
+          try { (window as any).__USE_TOAST__?.push({ message: `Hittade belopp: ${foundAmount} kr`, type: 'success' }); }
+          catch { alert(`Hittade belopp: ${foundAmount} kr`); }
+        }
       } else {
         setAnalyzeReceiptError('Kunde inte hitta något belopp på kvittot. Vänligen ange manuellt.');
       }
@@ -253,38 +429,44 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
     // Only search if value is long enough
     if (value.length > 2) {
       // Set new timer
-      debounceTimersRef.current[index] = setTimeout(() => {
+      debounceTimersRef.current[index] = setTimeout(async () => {
         try {
           if (!autocompleteServiceRef.current) {
-            return; // Silently skip if AutocompleteService not ready
+            return; // Silently skip if service not ready
           }
 
           const request = {
             input: value,
-            componentRestrictions: { country: 'se' }
+            componentRestrictions: { country: 'se' },
+            language: 'sv'
           };
 
-          autocompleteServiceRef.current.getPlacePredictions(request, (predictions: any, status: any) => {
-            if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && predictions) {
-              const suggestions = predictions.map((prediction: any) => ({
-                name: prediction.description,
-                placeId: prediction.place_id
-              }));
+          // Use the callback-based API (legacy AutocompleteService)
+          // This is what's currently being returned by Google Maps API
+          (autocompleteServiceRef.current as any).getPlacePredictions(
+            request,
+            (predictions: any, status: any) => {
+              let suggestions: any[] = [];
+
+              if (status === (window as any).google.maps.places.PlacesServiceStatus.OK && predictions) {
+                suggestions = predictions.map((prediction: any) => ({
+                  name: prediction.description || '',
+                  placeId: prediction.place_id || ''
+                }));
+              }
 
               setStopSuggestions(prev => ({
                 ...prev,
                 [index]: suggestions
               }));
-            } else {
-              // Clear suggestions on error or zero results
-              setStopSuggestions(prev => ({
-                ...prev,
-                [index]: []
-              }));
             }
-          });
+          );
         } catch (error) {
           // Silently fail on suggestions
+          setStopSuggestions(prev => ({
+            ...prev,
+            [index]: []
+          }));
         }
       }, 300);
     } else {
@@ -296,24 +478,20 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const file = e.target.files[0];
-      const isHeic = /heic|heif/i.test(file.type) || /\.heic$/i.test(file.name);
-      if (isHeic) {
-        import('heic2any')
-          .then((heic2any) => (heic2any && (heic2any as any).default) ? (heic2any as any).default({ blob: file, toType: 'image/jpeg' }) : (heic2any as any)({ blob: file, toType: 'image/jpeg' }))
-          .then((convertedBlob: Blob) => {
-            const jpegFile = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), { type: 'image/jpeg' });
-            setImage(jpegFile);
-          })
-          .catch(() => {
-            try { (window as any).__USE_TOAST__?.push({ message: 'Failed to process HEIC image. Please convert to JPEG and try again.', type: 'error' }); }
-            catch { alert('Failed to process HEIC image. Please convert to JPEG and try again.'); }
-            setImage(null);
-          });
-      } else {
+    try {
+      console.log('handleImageChange triggered');
+      if (e.target.files) {
+        const file = e.target.files[0];
+        console.log('handleImageChange file:', file && { name: file.name, type: file.type, size: file.size });
+        const isHeic = /heic|heif/i.test(file.type) || /\.heic$/i.test(file.name);
+        // Defer any heavy work (HEIC conversion) until user explicitly clicks "Analysera kvitto".
+        setIsHeicImageSelected(!!isHeic);
         setImage(file);
       }
+    } catch (err) {
+      console.error('handleImageChange error', err);
+    } finally {
+      try { sessionStorage.removeItem('fileInputClickedAt'); } catch (e) { /* ignore */ }
     }
   };
 
@@ -431,8 +609,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
 
   const imagePreview = existingImageUrl && !image ? (
     <div className="mt-2">
-      <img src={existingImageUrl} alt="Preview" className="w-32 h-32 object-cover rounded" />
-      <div className="text-xs text-gray-500 mt-1">Current image</div>
+      <img src={existingImageUrl} alt="Förhandsvisning" className="w-32 h-32 object-cover rounded" />
+      <div className="text-xs text-gray-500 mt-1">Aktuell bild</div>
     </div>
   ) : null;
 
@@ -624,7 +802,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
                     <div className="border-2 border-gray-300 dark:border-gray-700 rounded-md overflow-hidden">
                       <img
                         src={`https://maps.googleapis.com/maps/api/staticmap?size=600x300&markers=color:green|label:A|${encodeURIComponent(stops[0])}&markers=color:red|label:B|${encodeURIComponent(stops[stops.length - 1])}${stops.slice(1, -1).map((stop, idx) => `&markers=color:blue|label:${idx + 2}|${encodeURIComponent(stop)}`).join('')}&path=color:0x0000ff|weight:3${stops.map(stop => `|${encodeURIComponent(stop)}`).join('')}&key=${GOOGLE_MAPS_API_KEY}`}
-                        alt="Route map"
+                        alt="Ruttkarta"
                         className="w-full h-auto"
                       />
                     </div>
@@ -791,6 +969,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
           id="image-input"
           accept="image/*,application/pdf"
           capture="environment"
+          onClick={() => {
+            try { sessionStorage.setItem('fileInputClickedAt', String(Date.now())); } catch (e) { }
+            console.log('file input clicked (session marker set)');
+          }}
           onChange={handleImageChange}
           className="mt-1 block w-full text-sm text-gray-500 dark:text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 dark:file:bg-indigo-900 file:text-indigo-600 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-800 border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition"
           required={!isDriving && !image && !(expense && expense.image)}
@@ -808,6 +990,28 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
         )}
         {analyzeReceiptError && (
           <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">{analyzeReceiptError}</p>
+        )}
+        {ocrMatchedLinesState && ocrMatchedLinesState.length > 0 && (
+          <div className="mt-2">
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Hittade totalsummor</div>
+            <ul className="mt-1 text-xs list-disc list-inside max-h-40 overflow-y-auto text-gray-900 dark:text-gray-100">
+              {ocrMatchedLinesState.map((ln, i) => (
+                <li key={i} className="flex justify-between items-center">
+                  <span className="flex-1">{ln}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const match = ln.match(/([0-9]+[.,][0-9]{2})/);
+                      if (match) setCost(match[1].replace(',', '.'));
+                    }}
+                    className="ml-2 text-indigo-600 dark:text-indigo-400 text-xs"
+                  >
+                    Använd
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </div>
       <div className="flex gap-3 mt-4">
