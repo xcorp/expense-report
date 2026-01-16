@@ -126,21 +126,49 @@ function App() {
       // helper: try blob URL share, then download
       async function tryBlobShareOrDownload(file: File) {
         const blobUrl = URL.createObjectURL(file);
+        // Try several share approaches to maximize compatibility (files, url, text-only)
         try {
-          await (navigator as any).share({
-            title: translations['Expense Report'],
-            text: 'Here is my expense report.',
-            url: blobUrl,
-          });
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+          // 1) Share files if supported
+          if ((navigator as any).canShare && (navigator as any).canShare({ files: [file] })) {
+            await (navigator as any).share({ title: translations['Expense Report'], text: 'Here is my expense report.', files: [file] });
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            return;
+          }
+
+          // 2) Try sharing the blob URL (some mobile browsers accept a URL)
+          try {
+            await (navigator as any).share({ title: translations['Expense Report'], text: 'Here is my expense report.', url: blobUrl });
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            return;
+          } catch (errUrl) {
+            // continue to next attempt
+          }
+
+          // 3) As a last attempt to open the share sheet on browsers like Firefox for Android,
+          // share only title+text (this usually opens the native share UI even if files/URLs are unsupported)
+          try {
+            await (navigator as any).share({ title: translations['Expense Report'], text: 'Here is my expense report.' });
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            return;
+          } catch (errText) {
+            // continue to download fallback
+          }
         } catch (err) {
-          URL.revokeObjectURL(blobUrl);
+          // Fall through to download fallback
+        } finally {
+          // If we didn't revoke above, don't revoke the blobUrl here because the download fallback creates its own URL
+        }
+
+        // Fallback: download the file
+        try {
           const link = document.createElement('a');
           link.href = URL.createObjectURL(file);
           link.download = file.name;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+        } finally {
+          try { URL.revokeObjectURL(blobUrl); } catch { }
         }
       }
     } catch (error) {
