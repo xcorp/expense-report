@@ -179,6 +179,32 @@ const SettingsForm: React.FC = () => {
                             className={`mt-1 block w-full rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:ring-indigo-500 sm:text-sm border-2 ${invalidFields.includes('accountNumber') ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'}`}
                         />
                     </div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                        <div className="font-semibold mb-1">Vanliga format för clearing- och kontonummer (större banker)</div>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>
+                                <strong>Handelsbanken:</strong> 4-siffrigt clearingnummer som ofta börjar på <span className="font-mono">6</span>, följt av kontonummer. Exempel: <span className="font-mono">6789123456789</span> ("6789" = clearing, "123456789" = konto).
+                            </li>
+                            <li>
+                                <strong>Swedbank / Sparbanker (7xxx):</strong> 4-siffrigt clearingnummer. Om kontonumret är kort fylls det ut med nollor mellan clearing och konto för att nå totalt 11 siffror.
+                            </li>
+                            <li>
+                                <strong>Swedbank / Sparbanker (8xxx):</strong> 5-siffrigt clearingnummer (t.ex. <span className="font-mono">8327-9</span> där den femte siffran normalt inte skrivs). Fylls upp med nollor till totalt 14 siffror.
+                            </li>
+                            <li>
+                                <strong>Danske Bank:</strong> 4-siffrigt clearingnummer följt av kontonummer (vanligt format: <span className="font-mono">1234-567890</span>).
+                            </li>
+                            <li>
+                                <strong>Nordea:</strong> 4-siffrigt clearingnummer. Personkonto använder clearingnummer <span className="font-mono">3300</span> och personnumret som kontonummer. För andra konton fylls det ut med nollor mellan clearing och konto för att nå totalt 11 siffror.
+                            </li>
+                            <li>
+                                <strong>SEB:</strong> 4-siffrigt clearingnummer (börjar ofta på <span className="font-mono">5</span> eller <span className="font-mono">9</span>). Kontonummer fylls ut med nollor efter clearingnumret för att nå totalt 11 siffror (eller 14 för vissa företagskonton).
+                            </li>
+                        </ul>
+                        <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                            Tips: mata in endast siffror (ta bort mellanslag och bindestreck). Vid osäkerhet kontrollera ditt kontoutdrag eller kontakta din bank.
+                        </div>
+                    </div>
                     <button
                         onClick={handleSave}
                         className="inline-flex justify-center rounded-md border border-indigo-700 bg-indigo-700 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
