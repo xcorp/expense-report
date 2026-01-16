@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { translations } from '../i18n';
+import { COMMIT as GENERATED_COMMIT, TAG as GENERATED_TAG } from '../commitInfo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,12 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadReport, onClearAll, isReportGenerating }) => {
+  const [showInfo, setShowInfo] = useState(false);
+  const commitEnv = (import.meta.env as any).VITE_COMMIT || '';
+  const tagEnv = (import.meta.env as any).VITE_COMMIT_TAG || '';
+  // Fallback to generated file when env vars are not populated (e.g., running locally without build step)
+  const commit = commitEnv || GENERATED_COMMIT || '';
+  const tag = tagEnv || GENERATED_TAG || '';
   const buttonClass = "inline-flex justify-center rounded-md border border-transparent py-2 px-4 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50";
   const shareButtonClass = `${buttonClass} bg-green-600 hover:bg-green-700 focus:ring-green-500`;
   const downloadButtonClass = `${buttonClass} bg-blue-600 hover:bg-blue-700 focus:ring-blue-500`;
@@ -62,6 +69,40 @@ const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadRepo
           </div>
         </div>
       </div>
+
+      {/* Small info button (fixed) */}
+      <button
+        onClick={() => setShowInfo(true)}
+        aria-label="App info"
+        className="fixed bottom-4 right-4 z-50 inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-800 text-white shadow-lg hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+      >
+        i
+      </button>
+
+      {/* Info modal */}
+      {showInfo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black opacity-50" onClick={() => setShowInfo(false)} />
+          <div className="relative bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-semibold">{translations['Expense Report']}</h3>
+              <button onClick={() => setShowInfo(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400">✕</button>
+            </div>
+            <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
+              <div>© {new Date().getFullYear()} — Alla rättigheter förbehållna.</div>
+              <div className="mt-2 break-words">
+                {tag ? (
+                  <div>Tag: <span className="font-mono">{tag}</span></div>
+                ) : null}
+                <div>Commit: <span className="font-mono">{commit || 'local'}</span></div>
+              </div>
+            </div>
+            <div className="mt-4 text-right">
+              <button onClick={() => setShowInfo(false)} className="px-3 py-1 rounded bg-indigo-600 text-white">Stäng</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
