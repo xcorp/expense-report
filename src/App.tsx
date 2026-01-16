@@ -17,6 +17,19 @@ function App() {
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
   const toast = useToast();
 
+  // Helper: sanitize a string for safe filenames (remove diacritics and unsafe chars,
+  // collapse spaces to hyphens, trim extra hyphens).
+  const sanitizeForFilename = (input: string) => {
+    if (!input) return 'Unknown';
+    try {
+      const normalized = input.normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+      const cleaned = normalized.replace(/[^A-Za-z0-9\s-]/g, '');
+      return cleaned.trim().replace(/\s+/g, '-').replace(/-+/g, '-');
+    } catch (e) {
+      return input.replace(/[^A-Za-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').replace(/-+/g, '-');
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!expenses || expenses.length === 0) {
       toast.push({ message: translations['No expenses to report.'], type: 'info' });
@@ -36,7 +49,13 @@ function App() {
     setIsReportGenerating(true);
     try {
       const pdfBlob = await generatePdf(expenses, reportDate);
-      const pdfFile = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
+      // Build filename: "Utlägg-<NAME>-<DATE>.pdf" using a sanitized first name
+      const storedName = localStorage.getItem('reporterName') || '';
+      const nameParts = storedName.split(/\s+/).filter(Boolean);
+      const firstNameRaw = nameParts.length > 0 ? nameParts[0] : (storedName || '');
+      const safeFirstName = sanitizeForFilename(firstNameRaw) || 'Unknown';
+      const fileName = `Utlägg-${safeFirstName}-${reportDate}.pdf`;
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
       // 1) Preferred: share file objects (Chrome, etc.)
       if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
@@ -98,7 +117,7 @@ function App() {
       } else {
         const link = document.createElement('a');
         link.href = URL.createObjectURL(pdfFile);
-        link.download = 'expense-report.pdf';
+        link.download = pdfFile.name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -118,7 +137,7 @@ function App() {
           URL.revokeObjectURL(blobUrl);
           const link = document.createElement('a');
           link.href = URL.createObjectURL(file);
-          link.download = 'expense-report.pdf';
+          link.download = file.name;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -151,7 +170,12 @@ function App() {
     setIsReportGenerating(true);
     try {
       const pdfBlob = await generatePdf(expenses, reportDate);
-      const file = new File([pdfBlob], 'expense-report.pdf', { type: 'application/pdf' });
+      // Reuse same naming scheme for direct download
+      const storedName = localStorage.getItem('reporterName') || '';
+      const nameParts = storedName.split(/\s+/).filter(Boolean);
+      const firstNameRaw = nameParts.length > 0 ? nameParts[0] : (storedName || '');
+      const safeFirstName = sanitizeForFilename(firstNameRaw) || 'Unknown';
+      const file = new File([pdfBlob], `Utlägg-${safeFirstName}-${reportDate}.pdf`, { type: 'application/pdf' });
 
       // Open PDF in a new tab so the user can view it themselves (and download from viewer)
       const blobUrl = URL.createObjectURL(file);

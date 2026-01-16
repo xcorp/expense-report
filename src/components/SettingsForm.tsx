@@ -26,7 +26,15 @@ const SettingsForm: React.FC = () => {
         setBankName(savedBankName);
         setClearingNumber(savedClearingNumber);
         setAccountNumber(savedAccountNumber);
-        setDefaultCategory(savedDefaultCategory);
+
+        const validCategories = [...CATEGORIES];
+        if (savedDefaultCategory && validCategories.includes(savedDefaultCategory)) {
+            setDefaultCategory(savedDefaultCategory);
+        } else {
+            // Remove invalid preferred category (do not allow Övrigt as a saved preference)
+            setDefaultCategory('');
+            try { localStorage.removeItem('defaultCategory'); } catch { }
+        }
 
         // Expand if any field is empty
         if (!savedReporterName || !savedBankName || !savedClearingNumber || !savedAccountNumber) {
@@ -68,7 +76,12 @@ const SettingsForm: React.FC = () => {
         localStorage.setItem('bankName', bankName);
         localStorage.setItem('clearingNumber', clearingNumber);
         localStorage.setItem('accountNumber', accountNumber);
-        localStorage.setItem('defaultCategory', defaultCategory);
+        // Persist default category only if it's a known category (Övrigt cannot be a preferred category)
+        if (CATEGORIES.includes(defaultCategory)) {
+            localStorage.setItem('defaultCategory', defaultCategory);
+        } else {
+            try { localStorage.removeItem('defaultCategory'); } catch { }
+        }
         setIsCollapsed(true);
         try { (window as any).__USE_TOAST__?.push({ message: translations['Bank details saved!'], type: 'success' }); } catch { alert(translations['Bank details saved!']); }
     };
@@ -130,7 +143,6 @@ const SettingsForm: React.FC = () => {
                             {CATEGORIES.map((cat) => (
                                 <option key={cat} value={cat}>{cat}</option>
                             ))}
-                            <option value="Övrigt">Övrigt</option>
                         </select>
                     </div>
                     <div>

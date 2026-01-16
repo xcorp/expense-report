@@ -510,7 +510,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       if (!cost || parseFloat(cost) <= 0) empty.push('cost');
     }
 
-    if (!category || (category === 'Övrigt' && (!customCategory || customCategory.trim() === ''))) {
+    // Category must be either a known category or 'Övrigt' with a custom value
+    const categoryIsValid = (category && CATEGORIES.includes(category)) || (category === 'Övrigt' && customCategory && customCategory.trim() !== '');
+    if (!categoryIsValid) {
       empty.push('category');
     }
 
