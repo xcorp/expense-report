@@ -6,7 +6,7 @@ import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { DRIVING_COST_MULTIPLIER } from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
-GlobalWorkerOptions.workerSrc = "/expense-report/pdf.worker.min.js";
+GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 // Extend jsPDF with the autoTable plugin
 interface jsPDFWithAutoTable extends jsPDF {
