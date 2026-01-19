@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { translations } from '../i18n';
 import { COMMIT as GENERATED_COMMIT, TAG as GENERATED_TAG } from '../commitInfo';
+import HelpGuide from './HelpGuide';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -12,6 +13,20 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadReport, onClearAll, isReportGenerating }) => {
   const [showInfo, setShowInfo] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+
+  // Show help guide on first visit
+  useEffect(() => {
+    const hasSeenHelp = localStorage.getItem('hasSeenHelpGuide');
+    if (!hasSeenHelp) {
+      setShowHelp(true);
+    }
+  }, []);
+
+  const handleCloseHelp = () => {
+    setShowHelp(false);
+    localStorage.setItem('hasSeenHelpGuide', 'true');
+  };
   const commitEnv = (import.meta.env as any).VITE_COMMIT || '';
   const tagEnv = (import.meta.env as any).VITE_COMMIT_TAG || '';
   // Fallback to generated file when env vars are not populated (e.g., running locally without build step)
@@ -78,6 +93,18 @@ const Layout: React.FC<LayoutProps> = ({ children, onShareReport, onDownloadRepo
       >
         i
       </button>
+
+      {/* Help button (fixed) */}
+      <button
+        onClick={() => setShowHelp(true)}
+        aria-label="Hjälp"
+        className="fixed bottom-4 right-16 z-50 inline-flex items-center justify-center h-12 w-12 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-xl font-bold"
+      >
+        ?
+      </button>
+
+      {/* Help modal */}
+      <HelpGuide isOpen={showHelp} onClose={handleCloseHelp} />
 
       {/* Info modal */}
       {showInfo && (

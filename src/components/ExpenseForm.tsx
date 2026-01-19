@@ -302,13 +302,30 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
         try { console.log('TESS:', m); } catch (e) { }
       };
 
-      // Use PSM and whitelist to bias recognition to digits/punctuation for totals
-      const result = await (Tesseract as any).recognize(imageSource, 'swe+eng', {
+      // Use a local worker pointing at bundled core + traineddata to avoid CDN usage
+      // and to ensure both Swedish and English languages are available.
+      const worker = (Tesseract as any).createWorker({
         logger,
-        config: ['--psm', '6', '-c', 'tessedit_char_whitelist=0123456789.,']
+        workerPath: '/expense-report/tesseract/worker.min.js',
+        corePath: '/expense-report/tesseract/tesseract-core-relaxedsimd-lstm.wasm.js',
+        langPath: '/expense-report/tesseract/',
+        gzip: true,
       });
 
-      const text = result.data.text;
+      await worker.load();
+      await worker.loadLanguage('swe+eng');
+      await worker.initialize('swe+eng');
+      // Set parameters: PSM and whitelist
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '0123456789.,' });
+      } catch (e) {
+        // older tesseract versions may not support setParameters; ignore
+      }
+
+      const result = await worker.recognize(imageSource as any);
+      const text = result.data?.text || '';
+      // terminate worker to free wasm resources
+      try { await worker.terminate(); } catch (e) { }
 
       // Patterns used to detect totals (used for filtering displayed lines and amount detection)
       const totalPatterns = [
