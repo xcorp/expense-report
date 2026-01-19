@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { db, Expense } from '../db';
 import imageCompression from 'browser-image-compression';
 import { translations } from '../i18n';
 import { CATEGORIES, DRIVING_COST_MULTIPLIER, GOOGLE_MAPS_API_KEY } from '../config';
 import Tesseract from 'tesseract.js';
+import MileageHelpGuide from './MileageHelpGuide';
 
 interface ExpenseFormProps {
   expense?: Expense | null;
@@ -36,6 +37,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
   const [isHeicImageSelected, setIsHeicImageSelected] = useState(false);
   const [, setOcrWordsState] = useState<Array<{ text: string; bbox?: any }>>([]);
   const [ocrMatchedLinesState, setOcrMatchedLinesState] = useState<string[]>([]);
+  const [showMileageHelp, setShowMileageHelp] = useState(false);
 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const purposeRef = useRef<HTMLInputElement>(null);
@@ -87,6 +89,21 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
       Object.values(debounceTimersRef.current).forEach(timer => clearTimeout(timer));
     };
   }, []);
+
+  // Show mileage help on first time checking "Driving"
+  useEffect(() => {
+    if (isDriving && !expense) { // Only for new expenses, not when editing
+      const hasSeenMileageHelp = localStorage.getItem('hasSeenMileageHelp');
+      if (!hasSeenMileageHelp) {
+        setShowMileageHelp(true);
+      }
+    }
+  }, [isDriving, expense]);
+
+  const handleCloseMileageHelp = () => {
+    setShowMileageHelp(false);
+    localStorage.setItem('hasSeenMileageHelp', 'true');
+  };
 
   // Global debugging hooks to capture crashes/unhandled rejections (helps remote debugging on mobile)
   React.useEffect(() => {
@@ -635,11 +652,22 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-gray-50 dark:bg-gray-800 p-6 sm:p-8 rounded-xl shadow-lg border-2 border-gray-300 dark:border-gray-700 max-w-md mx-auto text-gray-900 dark:text-gray-100">
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center justify-between">
         <label className="inline-flex items-center">
           <input type="checkbox" checked={isDriving} onChange={(e) => setIsDriving(e.target.checked)} className="mr-2" />
           <span className="text-sm">{translations['Driving']}</span>
         </label>
+        {isDriving && (
+          <button
+            type="button"
+            onClick={() => setShowMileageHelp(true)}
+            className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-indigo-500 text-white text-xs hover:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            aria-label="Hjälp om milersättning"
+            title="Hjälp om milersättning"
+          >
+            ?
+          </button>
+        )}
       </div>
       {isDriving ? (
         <>
@@ -1053,6 +1081,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
           </button>
         )}
       </div>
+
+      {/* Mileage Help Modal */}
+      <MileageHelpGuide isOpen={showMileageHelp} onClose={handleCloseMileageHelp} />
     </form>
   );
 };
