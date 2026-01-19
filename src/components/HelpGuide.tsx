@@ -53,7 +53,22 @@ const HelpGuide: React.FC<HelpGuideProps> = ({ isOpen, onClose }) => {
                         <h4 className="font-semibold text-lg mb-2">Skapa och dela rapport</h4>
                         <p>
                             När du har lagt till alla dina utlägg kan du använda knapparna högst upp för att
-                            dela eller ladda ner en PDF-rapport. Rapporten innehåller alla dina sparade utlägg.
+                            skapa din rapport:
+                        </p>
+                        <ul className="list-disc list-inside ml-4 mt-2 space-y-2">
+                            <li>
+                                <strong>Dela rapport:</strong> Använd denna knapp för att direkt dela PDF:en via din enhets
+                                delningsmeny. Detta fungerar bäst i Chrome på Android och på iPhone/iPad. Du kan då välja
+                                att skicka via e-post, meddelandeapp eller annan delningsmetod.
+                            </li>
+                            <li>
+                                <strong>Ladda ner PDF:</strong> Laddar ner rapporten som en PDF-fil till din enhet.
+                                Du kan sedan bifoga filen i ett e-postmeddelande eller ladda upp den på annat sätt.
+                            </li>
+                        </ul>
+                        <p className="mt-3">
+                            <strong>Nästa steg:</strong> Efter att du skapat PDF:en, skicka den till kårens kassör för
+                            hantering och utbetalning av dina utlägg.
                         </p>
                         <p className="mt-2 font-medium text-amber-700 dark:text-amber-400">
                             ⚠️ OBS! Efter att du har skapat och skickat in din rapport måste du själv klicka på
