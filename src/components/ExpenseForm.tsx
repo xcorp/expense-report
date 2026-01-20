@@ -1015,7 +1015,6 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
           type="file"
           id="image-input"
           accept="image/*,application/pdf"
-          capture="environment"
           onClick={() => {
             try { sessionStorage.setItem('fileInputClickedAt', String(Date.now())); } catch (e) { }
             console.log('file input clicked (session marker set)');
