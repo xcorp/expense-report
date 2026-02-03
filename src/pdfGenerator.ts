@@ -118,21 +118,20 @@ const addImageWithSplit = async (
 
   // Check if image fits on current page
   if (displayHeight <= availableHeight) {
-    const needsResize = imgElement.width > PDF_IMAGE_MAX_WIDTH_PX;
     const isHighContrast = detectHighContrastFromImage(imgElement);
 
     console.log('Image processing:', {
       width: imgElement.width,
       height: imgElement.height,
-      needsResize,
       isHighContrast,
       displayWidth,
       displayHeight
     });
 
-    // If high contrast and doesn't need resize, use original directly
-    if (isHighContrast && !needsResize) {
-      console.log('Using original image directly as PNG');
+    // If high contrast (text/documents), use original directly - no canvas processing
+    // This preserves maximum sharpness even if jsPDF has to scale
+    if (isHighContrast) {
+      console.log('Using original high-contrast image directly as PNG (no canvas)');
       doc.addImage(imgElement, 'PNG', margin, startY, displayWidth, displayHeight);
       return startY + displayHeight;
     }
@@ -145,7 +144,7 @@ const addImageWithSplit = async (
       let width = imgElement.width;
       let height = imgElement.height;
       const aspectRatio = width / height;
-      
+
       // Ensure canvas is at least optimal width for 300 DPI, but not more than max
       if (width < PDF_IMAGE_OPTIMAL_WIDTH_PX) {
         // Upscale small images to optimal width
@@ -160,7 +159,7 @@ const addImageWithSplit = async (
       } else {
         console.log('Using original size:', width);
       }
-      
+
       canvas.width = width;
       canvas.height = height;
       // Disable image smoothing to preserve sharpness
@@ -211,19 +210,28 @@ const addImageWithSplit = async (
     return startY + displayHeight;
   }
 
-  // Calculate optimal canvas width for 300 DPI
+  // Check if high contrast to decide on canvas sizing
+  const isHighContrast = detectHighContrastFromImage(imgElement);
+
+  // Calculate optimal canvas width
   let canvasWidth = imgElement.width;
-  
-  if (canvasWidth < PDF_IMAGE_OPTIMAL_WIDTH_PX) {
-    canvasWidth = PDF_IMAGE_OPTIMAL_WIDTH_PX;
-    console.log('Split: Upscaling to optimal width:', canvasWidth);
-  } else if (canvasWidth > PDF_IMAGE_MAX_WIDTH_PX) {
-    canvasWidth = PDF_IMAGE_MAX_WIDTH_PX;
-    console.log('Split: Downscaling to max width:', canvasWidth);
+
+  // For high contrast (text/documents), use original size to preserve sharpness
+  // For low contrast (photos), optimize for 300 DPI
+  if (!isHighContrast) {
+    if (canvasWidth < PDF_IMAGE_OPTIMAL_WIDTH_PX) {
+      canvasWidth = PDF_IMAGE_OPTIMAL_WIDTH_PX;
+      console.log('Split: Upscaling photo to optimal width:', canvasWidth);
+    } else if (canvasWidth > PDF_IMAGE_MAX_WIDTH_PX) {
+      canvasWidth = PDF_IMAGE_MAX_WIDTH_PX;
+      console.log('Split: Downscaling photo to max width:', canvasWidth);
+    } else {
+      console.log('Split: Using original photo width:', canvasWidth);
+    }
   } else {
-    console.log('Split: Using original width:', canvasWidth);
+    console.log('Split: Using original document width (high contrast):', canvasWidth);
   }
-  
+
   canvas.width = canvasWidth;
 
   let currentY = startY;
