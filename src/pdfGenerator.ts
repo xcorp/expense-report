@@ -11,6 +11,7 @@ import {
   PDF_IMAGE_MAX_WIDTH_PX,
   PDF_IMAGE_JPEG_QUALITY,
   PDF_IMAGE_JPEG_QUALITY_SPLIT,
+  PDF_IMAGE_JPEG_QUALITY_HIGH_CONTRAST,
   PDF_IMAGE_CONTRAST_THRESHOLD,
   PDF_IMAGE_OPTIMAL_WIDTH_PX
 } from './config';
@@ -262,8 +263,10 @@ const addImageWithSplit = async (
       canvasWidth, canvasHeight
     );
 
-    // Use PNG for all chunks to preserve quality (no JPEG compression artifacts)
-    const chunkDataUrl = canvas.toDataURL('image/png');
+    // Use high quality JPEG for high contrast (better than PNG for file size, still very sharp)
+    // Use standard split quality JPEG for photos
+    const quality = isHighContrast ? PDF_IMAGE_JPEG_QUALITY_HIGH_CONTRAST : PDF_IMAGE_JPEG_QUALITY_SPLIT;
+    const chunkDataUrl = canvas.toDataURL('image/jpeg', quality);
 
     // Add page if needed (not for first chunk if there's space)
     if (i > 0 || currentY + chunkDisplayHeight > pageHeight - margin) {
