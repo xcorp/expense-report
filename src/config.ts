@@ -22,3 +22,8 @@ export const CATEGORIES = [
 export const DRIVING_COST_MULTIPLIER = 2.5; // Cost per km for driving expenses
 
 export const GOOGLE_MAPS_API_KEY = 'AIzaSyAvCBn477nxZotf6M5Xkbf1Vww2XVZt-3s';
+
+// PDF Image Handling Configuration
+export const PDF_IMAGE_DPI_THRESHOLD = 300; // DPI threshold - above this we scale down instead of splitting
+export const PDF_IMAGE_MIN_SPLIT_PERCENTAGE = 20; // Minimum % of image on next page to justify splitting (otherwise scale down)
+export const PDF_IMAGE_OVERLAP_MM = 25; // Overlap in mm when splitting images across pages

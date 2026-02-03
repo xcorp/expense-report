@@ -3,7 +3,12 @@ import 'jspdf-autotable';
 import { Expense } from './db';
 import { translations } from './i18n';
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
-import { DRIVING_COST_MULTIPLIER } from './config';
+import {
+  DRIVING_COST_MULTIPLIER,
+  PDF_IMAGE_DPI_THRESHOLD,
+  PDF_IMAGE_MIN_SPLIT_PERCENTAGE,
+  PDF_IMAGE_OVERLAP_MM
+} from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
 GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
@@ -12,6 +17,140 @@ GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 interface jsPDFWithAutoTable extends jsPDF {
   autoTable: (options: any) => jsPDF;
 }
+
+// Helper function to calculate image DPI based on dimensions
+const calculateImageDPI = (imgWidthPx: number, imgHeightPx: number, displayWidthMm: number, displayHeightMm: number): number => {
+  // Convert mm to inches (1 inch = 25.4 mm)
+  const displayWidthInch = displayWidthMm / 25.4;
+  const displayHeightInch = displayHeightMm / 25.4;
+
+  // Calculate DPI for both dimensions and take the average
+  const dpiWidth = imgWidthPx / displayWidthInch;
+  const dpiHeight = imgHeightPx / displayHeightInch;
+
+  return (dpiWidth + dpiHeight) / 2;
+};
+
+// Helper function to split and render image across multiple pages
+const addImageWithSplit = async (
+  doc: jsPDFWithAutoTable,
+  imgElement: HTMLImageElement,
+  imageFormat: string,
+  startY: number,
+  displayWidth: number,
+  displayHeight: number,
+  maxHeight: number,
+  margin: number,
+  label: string
+): Promise<number> => {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const availableHeight = pageHeight - startY - margin;
+
+  // Check if image fits on current page
+  if (displayHeight <= availableHeight) {
+    doc.addImage(imgElement, imageFormat, margin, startY, displayWidth, displayHeight);
+    return startY + displayHeight;
+  }
+
+  // Calculate how many chunks we need
+  const overlapMm = PDF_IMAGE_OVERLAP_MM;
+  const chunkHeightMm = maxHeight - overlapMm;
+  const numChunks = Math.ceil(displayHeight / chunkHeightMm);
+
+  // Calculate percentage on next page if we just let it overflow
+  const overflowAmount = displayHeight - availableHeight;
+  const overflowPercentage = (overflowAmount / displayHeight) * 100;
+
+  // If less than threshold would overflow, try to scale down instead
+  if (overflowPercentage < PDF_IMAGE_MIN_SPLIT_PERCENTAGE) {
+    const scaledHeight = availableHeight;
+    const scaledWidth = (imgElement.width / imgElement.height) * scaledHeight;
+    doc.addImage(imgElement, imageFormat, margin, startY, scaledWidth, scaledHeight);
+    return startY + scaledHeight;
+  }
+
+  // Calculate DPI to decide if we should scale or split
+  const dpi = calculateImageDPI(imgElement.width, imgElement.height, displayWidth, displayHeight);
+
+  // If high DPI (>threshold), we can afford to scale down
+  if (dpi > PDF_IMAGE_DPI_THRESHOLD) {
+    const scaledHeight = availableHeight;
+    const scaledWidth = (imgElement.width / imgElement.height) * scaledHeight;
+    doc.addImage(imgElement, imageFormat, margin, startY, scaledWidth, scaledHeight);
+    return startY + scaledHeight;
+  }
+
+  // Low DPI - split the image to preserve quality
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    // Fallback: just add the image and let it overflow/clip
+    doc.addImage(imgElement, imageFormat, margin, startY, displayWidth, displayHeight);
+    return startY + displayHeight;
+  }
+
+  canvas.width = imgElement.width;
+
+  let currentY = startY;
+  let sourceY = 0;
+
+  for (let i = 0; i < numChunks; i++) {
+    // Calculate source and destination heights
+    const isLastChunk = i === numChunks - 1;
+    const remainingHeightMm = displayHeight - (i * chunkHeightMm);
+    const chunkDisplayHeight = Math.min(isLastChunk ? remainingHeightMm : maxHeight, remainingHeightMm + overlapMm);
+
+    // Calculate source height in pixels
+    const sourceHeightPx = (chunkDisplayHeight / displayHeight) * imgElement.height;
+    canvas.height = sourceHeightPx;
+
+    // Draw the chunk
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(
+      imgElement,
+      0, sourceY,
+      imgElement.width, sourceHeightPx,
+      0, 0,
+      canvas.width, canvas.height
+    );
+
+    const chunkDataUrl = canvas.toDataURL(`image/${imageFormat.toLowerCase()}`);
+
+    // Add page if needed (not for first chunk if there's space)
+    if (i > 0 || currentY + chunkDisplayHeight > pageHeight - margin) {
+      if (i > 0) {
+        doc.addPage();
+        currentY = 20;
+      }
+    }
+
+    // Add continuation labels
+    doc.setFontSize(9);
+    doc.setTextColor(128, 128, 128);
+    if (i > 0) {
+      doc.text(`↑ Forts. från föregående sida: ${label}`, margin, currentY);
+      currentY += 5;
+    }
+
+    // Add the image chunk
+    doc.addImage(chunkDataUrl, imageFormat, margin, currentY, displayWidth, chunkDisplayHeight);
+    currentY += chunkDisplayHeight;
+
+    if (!isLastChunk) {
+      doc.setFontSize(9);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`↓ Forts. på nästa sida`, margin, currentY + 3);
+      currentY += 5;
+    }
+
+    doc.setTextColor(0, 0, 0); // Reset color
+
+    // Move source position for next chunk (with overlap)
+    sourceY += sourceHeightPx - ((overlapMm / displayHeight) * imgElement.height);
+  }
+
+  return currentY;
+};
 
 export const generatePdf = async (expenses: Expense[], reportDate?: string): Promise<Blob> => {
   const doc = new jsPDF() as jsPDFWithAutoTable;
@@ -233,36 +372,45 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
       const blob = new Blob([expense.image], { type: expense.imageType || 'image/jpeg' });
       const url = URL.createObjectURL(blob);
 
-      await new Promise<void>(resolve => {
-        img.onload = () => {
+      await new Promise<void>(async (resolve) => {
+        img.onload = async () => {
           const imgWidth = img.width;
           const imgHeight = img.height;
           const ratio = imgWidth / imgHeight;
 
-          let width = 180;
+          const margin = 15;
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          let width = Math.min(180, pageWidth - (margin * 2));
           let height = width / ratio;
+          const maxHeight = pageHeight - 40; // Max height for image chunks
 
-          if (y + height > 280) {
-            doc.addPage();
-            y = 20;
-          }
-
+          // Add expense description
           doc.setFontSize(12);
           const category = translations[expense.category as keyof typeof translations] || expense.category || '';
-          // Build a detail line that includes driving fields when present
           const details: string[] = [];
           if (expense.purpose) details.push(`${translations['Purpose of trip']}: ${expense.purpose}`);
           if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
           if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
           const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
+          const label = `#${expenseIndex + 1}: ${expense.description || ''} - ${category}`;
 
-          doc.text(`#${expenseIndex + 1}: ${expense.description || ''} - ${category}${detailLine}`, 14, y);
+          // Check if we need a new page for the description + image
+          const descHeight = 10;
+          if (y + descHeight > pageHeight - margin) {
+            doc.addPage();
+            y = 20;
+          }
+
+          doc.text(`${label}${detailLine}`, 14, y);
           y += 5;
 
           // Use expense.imageType for addImage, fallback to 'JPEG' if undefined
           const imgFormat = (expense.imageType && expense.imageType.split('/')[1].toUpperCase()) || 'JPEG';
-          doc.addImage(url, imgFormat, 15, y, width, height);
-          y += height + 10;
+
+          // Use the smart splitting function
+          y = await addImageWithSplit(doc, img, imgFormat, y, width, height, maxHeight, margin, label);
+          y += 10;
 
           URL.revokeObjectURL(url);
           resolve();
