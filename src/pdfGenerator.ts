@@ -9,7 +9,8 @@ import {
   PDF_IMAGE_MIN_SPLIT_PERCENTAGE,
   PDF_IMAGE_OVERLAP_MM,
   PDF_IMAGE_MAX_WIDTH_PX,
-  PDF_IMAGE_JPEG_QUALITY
+  PDF_IMAGE_JPEG_QUALITY,
+  PDF_IMAGE_JPEG_QUALITY_SPLIT
 } from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
@@ -33,42 +34,6 @@ const calculateImageDPI = (imgWidthPx: number, imgHeightPx: number, displayWidth
   return (dpiWidth + dpiHeight) / 2;
 };
 
-// Helper function to compress and resize image if needed
-const compressImage = (imgElement: HTMLImageElement): string => {
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-
-  if (!ctx) {
-    // Fallback: return original image as JPEG
-    const fallbackCanvas = document.createElement('canvas');
-    fallbackCanvas.width = imgElement.width;
-    fallbackCanvas.height = imgElement.height;
-    const fallbackCtx = fallbackCanvas.getContext('2d');
-    if (fallbackCtx) {
-      fallbackCtx.drawImage(imgElement, 0, 0);
-      return fallbackCanvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
-    }
-    return '';
-  }
-
-  // Resize if image is larger than max width
-  let width = imgElement.width;
-  let height = imgElement.height;
-
-  if (width > PDF_IMAGE_MAX_WIDTH_PX) {
-    const ratio = PDF_IMAGE_MAX_WIDTH_PX / width;
-    width = PDF_IMAGE_MAX_WIDTH_PX;
-    height = height * ratio;
-  }
-
-  canvas.width = width;
-  canvas.height = height;
-
-  // Draw and compress as JPEG
-  ctx.drawImage(imgElement, 0, 0, width, height);
-  return canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
-};
-
 // Helper function to split and render image across multiple pages
 const addImageWithSplit = async (
   doc: jsPDFWithAutoTable,
@@ -86,7 +51,26 @@ const addImageWithSplit = async (
 
   // Check if image fits on current page
   if (displayHeight <= availableHeight) {
-    doc.addImage(imgElement, imageFormat, margin, startY, displayWidth, displayHeight);
+    // Image fits - compress it before adding
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Resize if needed
+      let width = imgElement.width;
+      let height = imgElement.height;
+      if (width > PDF_IMAGE_MAX_WIDTH_PX) {
+        const ratio = PDF_IMAGE_MAX_WIDTH_PX / width;
+        width = PDF_IMAGE_MAX_WIDTH_PX;
+        height = height * ratio;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(imgElement, 0, 0, width, height);
+      const compressedUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
+      doc.addImage(compressedUrl, imageFormat, margin, startY, displayWidth, displayHeight);
+    } else {
+      doc.addImage(imgElement, imageFormat, margin, startY, displayWidth, displayHeight);
+    }
     return startY + displayHeight;
   }
 
@@ -152,7 +136,7 @@ const addImageWithSplit = async (
       canvas.width, canvas.height
     );
 
-    const chunkDataUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
+    const chunkDataUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY_SPLIT);
 
     // Add page if needed (not for first chunk if there's space)
     if (i > 0 || currentY + chunkDisplayHeight > pageHeight - margin) {
@@ -412,18 +396,8 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
 
       await new Promise<void>(async (resolve) => {
         img.onload = async () => {
-          // Compress image first
-          const compressedDataUrl = compressImage(img);
-
-          // Create new image from compressed data
-          const compressedImg = new Image();
-          await new Promise<void>((resolveLoad) => {
-            compressedImg.onload = () => resolveLoad();
-            compressedImg.src = compressedDataUrl;
-          });
-
-          const imgWidth = compressedImg.width;
-          const imgHeight = compressedImg.height;
+          const imgWidth = img.width;
+          const imgHeight = img.height;
           const ratio = imgWidth / imgHeight;
 
           const margin = 15;
@@ -453,13 +427,12 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
           doc.text(`${label}${detailLine}`, 14, y);
           y += 5;
 
-          // Always use JPEG for compressed images
+          // Always use JPEG for consistency
           const imgFormat = 'JPEG';
 
-          // Use the smart splitting function with compressed image
-          y = await addImageWithSplit(doc, compressedImg, imgFormat, y, width, height, maxHeight, margin, label);
-          y += 10;
-
+          // Use the smart splitting function with original uncompressed image
+          // It will handle compression internally (split chunks at 0.85, single images just display)
+          y = await addImageWithSplit(doc, img, imgFormat, y, width, height, maxHeight, margin, label);
           URL.revokeObjectURL(url);
           resolve();
         };
