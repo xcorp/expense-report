@@ -69,9 +69,9 @@ const detectHighContrastFromImage = (img: HTMLImageElement): boolean => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return false;
 
-  // Sample a small portion from middle of image to avoid logos/headers
-  const sampleWidth = Math.min(img.width, 200);
-  const sampleHeight = Math.min(img.height, 200);
+  // Sample a portion from middle of image to avoid logos/headers
+  const sampleWidth = Math.min(img.width, 600);
+  const sampleHeight = Math.min(img.height, 600);
 
   // Start 10% from left edge, vertically centered
   const sourceX = img.width * 0.1;
