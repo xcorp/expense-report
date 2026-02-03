@@ -11,7 +11,8 @@ import {
   PDF_IMAGE_MAX_WIDTH_PX,
   PDF_IMAGE_JPEG_QUALITY,
   PDF_IMAGE_JPEG_QUALITY_SPLIT,
-  PDF_IMAGE_CONTRAST_THRESHOLD
+  PDF_IMAGE_CONTRAST_THRESHOLD,
+  PDF_IMAGE_OPTIMAL_WIDTH_PX
 } from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
@@ -120,8 +121,18 @@ const addImageWithSplit = async (
     const needsResize = imgElement.width > PDF_IMAGE_MAX_WIDTH_PX;
     const isHighContrast = detectHighContrastFromImage(imgElement);
 
+    console.log('Image processing:', {
+      width: imgElement.width,
+      height: imgElement.height,
+      needsResize,
+      isHighContrast,
+      displayWidth,
+      displayHeight
+    });
+
     // If high contrast and doesn't need resize, use original directly
     if (isHighContrast && !needsResize) {
+      console.log('Using original image directly as PNG');
       doc.addImage(imgElement, 'PNG', margin, startY, displayWidth, displayHeight);
       return startY + displayHeight;
     }
@@ -130,14 +141,26 @@ const addImageWithSplit = async (
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Resize if needed
+      // Calculate optimal canvas size for 300 DPI rendering
       let width = imgElement.width;
       let height = imgElement.height;
-      if (needsResize) {
-        const ratio = PDF_IMAGE_MAX_WIDTH_PX / width;
+      const aspectRatio = width / height;
+      
+      // Ensure canvas is at least optimal width for 300 DPI, but not more than max
+      if (width < PDF_IMAGE_OPTIMAL_WIDTH_PX) {
+        // Upscale small images to optimal width
+        width = PDF_IMAGE_OPTIMAL_WIDTH_PX;
+        height = width / aspectRatio;
+        console.log('Upscaling to optimal width:', width);
+      } else if (width > PDF_IMAGE_MAX_WIDTH_PX) {
+        // Downscale very large images
         width = PDF_IMAGE_MAX_WIDTH_PX;
-        height = height * ratio;
+        height = width / aspectRatio;
+        console.log('Downscaling to max width:', width);
+      } else {
+        console.log('Using original size:', width);
       }
+      
       canvas.width = width;
       canvas.height = height;
       // Disable image smoothing to preserve sharpness
@@ -188,7 +211,20 @@ const addImageWithSplit = async (
     return startY + displayHeight;
   }
 
-  canvas.width = imgElement.width;
+  // Calculate optimal canvas width for 300 DPI
+  let canvasWidth = imgElement.width;
+  
+  if (canvasWidth < PDF_IMAGE_OPTIMAL_WIDTH_PX) {
+    canvasWidth = PDF_IMAGE_OPTIMAL_WIDTH_PX;
+    console.log('Split: Upscaling to optimal width:', canvasWidth);
+  } else if (canvasWidth > PDF_IMAGE_MAX_WIDTH_PX) {
+    canvasWidth = PDF_IMAGE_MAX_WIDTH_PX;
+    console.log('Split: Downscaling to max width:', canvasWidth);
+  } else {
+    console.log('Split: Using original width:', canvasWidth);
+  }
+  
+  canvas.width = canvasWidth;
 
   let currentY = startY;
   let sourceY = 0;
@@ -199,21 +235,23 @@ const addImageWithSplit = async (
     const remainingHeightMm = displayHeight - (i * chunkHeightMm);
     const chunkDisplayHeight = Math.min(isLastChunk ? remainingHeightMm : maxHeight, remainingHeightMm + overlapMm);
 
-    // Calculate source height in pixels
+    // Calculate source height in pixels from original image
     const sourceHeightPx = (chunkDisplayHeight / displayHeight) * imgElement.height;
-    canvas.height = sourceHeightPx;
+    // Calculate canvas height maintaining aspect ratio with new width
+    const canvasHeight = (sourceHeightPx / imgElement.width) * canvasWidth;
+    canvas.height = canvasHeight;
 
     // Disable image smoothing to preserve sharpness
     ctx.imageSmoothingEnabled = false;
 
-    // Draw the chunk
+    // Draw the chunk from original image to optimally-sized canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(
       imgElement,
       0, sourceY,
       imgElement.width, sourceHeightPx,
       0, 0,
-      canvas.width, canvas.height
+      canvasWidth, canvasHeight
     );
 
     // Use PNG for all chunks to preserve quality (no JPEG compression artifacts)

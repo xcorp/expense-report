@@ -25,8 +25,9 @@ export const GOOGLE_MAPS_API_KEY = 'AIzaSyAvCBn477nxZotf6M5Xkbf1Vww2XVZt-3s';
 
 // PDF Image Handling Configuration
 export const PDF_IMAGE_DPI_THRESHOLD = 300; // DPI threshold - above this we scale down instead of splitting
-export const PDF_IMAGE_MIN_SPLIT_PERCENTAGE = 100; // Minimum % of image on next page to justify splitting (otherwise scale down) - TEMPORARILY SET TO 100 TO DISABLE SPLITTING
+export const PDF_IMAGE_MIN_SPLIT_PERCENTAGE = 20; // Minimum % of image on next page to justify splitting (otherwise scale down)
 export const PDF_IMAGE_OVERLAP_MM = 25; // Overlap in mm when splitting images across pages
+export const PDF_IMAGE_OPTIMAL_WIDTH_PX = 2126; // Optimal canvas width for 300 DPI at 180mm display width (180mm / 25.4 * 300)
 export const PDF_IMAGE_MAX_WIDTH_PX = 2400; // Maximum image width in pixels (maintains ~340 DPI at 180mm display width)
 export const PDF_IMAGE_JPEG_QUALITY = 0.75; // JPEG compression quality for normal images (0.0-1.0)
 export const PDF_IMAGE_JPEG_QUALITY_SPLIT = 0.85; // JPEG compression quality for image chunks (higher to avoid double compression)
