@@ -63,6 +63,27 @@ const detectHighContrast = (canvas: HTMLCanvasElement): boolean => {
   return stdDev > PDF_IMAGE_CONTRAST_THRESHOLD;
 };
 
+// Helper function to detect high contrast directly from image element
+const detectHighContrastFromImage = (img: HTMLImageElement): boolean => {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
+
+  // Sample a small portion from middle of image to avoid logos/headers
+  const sampleWidth = Math.min(img.width, 200);
+  const sampleHeight = Math.min(img.height, 200);
+
+  // Start 10% from left edge, vertically centered
+  const sourceX = img.width * 0.1;
+  const sourceY = (img.height - sampleHeight) / 2;
+
+  canvas.width = sampleWidth;
+  canvas.height = sampleHeight;
+  ctx.drawImage(img, sourceX, sourceY, sampleWidth, sampleHeight, 0, 0, sampleWidth, sampleHeight);
+
+  return detectHighContrast(canvas);
+};
+
 // Helper function to convert canvas to optimal format (PNG for high contrast, JPEG for photos)
 const canvasToOptimalDataUrl = (canvas: HTMLCanvasElement, isForSplit: boolean = false): string => {
   const isHighContrast = detectHighContrast(canvas);
@@ -96,14 +117,23 @@ const addImageWithSplit = async (
 
   // Check if image fits on current page
   if (displayHeight <= availableHeight) {
-    // Image fits - compress/format it before adding
+    const needsResize = imgElement.width > PDF_IMAGE_MAX_WIDTH_PX;
+    const isHighContrast = detectHighContrastFromImage(imgElement);
+
+    // If high contrast and doesn't need resize, use original directly
+    if (isHighContrast && !needsResize) {
+      doc.addImage(imgElement, 'PNG', margin, startY, displayWidth, displayHeight);
+      return startY + displayHeight;
+    }
+
+    // Otherwise, process through canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (ctx) {
       // Resize if needed
       let width = imgElement.width;
       let height = imgElement.height;
-      if (width > PDF_IMAGE_MAX_WIDTH_PX) {
+      if (needsResize) {
         const ratio = PDF_IMAGE_MAX_WIDTH_PX / width;
         width = PDF_IMAGE_MAX_WIDTH_PX;
         height = height * ratio;
