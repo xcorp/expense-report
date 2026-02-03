@@ -575,7 +575,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, onEditDone }) => {
         imageBuffer = await image.arrayBuffer();
         imageType = image.type;
       } else {
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1200, useWebWorker: true };
+        // Compress but preserve resolution for PDF generation
+        // PDF generator will handle final optimization based on contrast/DPI
+        const options = { maxSizeMB: 2, maxWidthOrHeight: 2400, useWebWorker: true };
         imageBuffer = await (await imageCompression(image as File, options)).arrayBuffer();
         imageType = image.type;
       }
