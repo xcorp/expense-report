@@ -211,7 +211,8 @@ const addImageWithSplit = async (
       canvas.width, canvas.height
     );
 
-    const chunkDataUrl = canvasToOptimalDataUrl(canvas, true);
+    // Use PNG for all chunks to preserve quality (no JPEG compression artifacts)
+    const chunkDataUrl = canvas.toDataURL('image/png');
 
     // Add page if needed (not for first chunk if there's space)
     if (i > 0 || currentY + chunkDisplayHeight > pageHeight - margin) {
