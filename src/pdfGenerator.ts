@@ -140,6 +140,8 @@ const addImageWithSplit = async (
       }
       canvas.width = width;
       canvas.height = height;
+      // Disable image smoothing to preserve sharpness
+      ctx.imageSmoothingEnabled = false;
       ctx.drawImage(imgElement, 0, 0, width, height);
       const dataUrl = canvasToOptimalDataUrl(canvas, false);
       doc.addImage(dataUrl, imageFormat, margin, startY, displayWidth, displayHeight);
@@ -200,6 +202,9 @@ const addImageWithSplit = async (
     // Calculate source height in pixels
     const sourceHeightPx = (chunkDisplayHeight / displayHeight) * imgElement.height;
     canvas.height = sourceHeightPx;
+
+    // Disable image smoothing to preserve sharpness
+    ctx.imageSmoothingEnabled = false;
 
     // Draw the chunk
     ctx.clearRect(0, 0, canvas.width, canvas.height);
