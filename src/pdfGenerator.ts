@@ -10,7 +10,8 @@ import {
   PDF_IMAGE_OVERLAP_MM,
   PDF_IMAGE_MAX_WIDTH_PX,
   PDF_IMAGE_JPEG_QUALITY,
-  PDF_IMAGE_JPEG_QUALITY_SPLIT
+  PDF_IMAGE_JPEG_QUALITY_SPLIT,
+  PDF_IMAGE_CONTRAST_THRESHOLD
 } from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
@@ -34,6 +35,50 @@ const calculateImageDPI = (imgWidthPx: number, imgHeightPx: number, displayWidth
   return (dpiWidth + dpiHeight) / 2;
 };
 
+// Helper function to detect if image has high contrast (text/documents)
+const detectHighContrast = (canvas: HTMLCanvasElement): boolean => {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return false;
+
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  // Sample every 10th pixel to speed up calculation
+  const samples: number[] = [];
+  for (let i = 0; i < data.length; i += 40) { // RGBA = 4 bytes, so 40 = 10 pixels
+    // Convert to grayscale
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+    samples.push(gray);
+  }
+
+  // Calculate standard deviation
+  const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+  const variance = samples.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / samples.length;
+  const stdDev = Math.sqrt(variance);
+
+  // High contrast means high standard deviation
+  return stdDev > PDF_IMAGE_CONTRAST_THRESHOLD;
+};
+
+// Helper function to convert canvas to optimal format (PNG for high contrast, JPEG for photos)
+const canvasToOptimalDataUrl = (canvas: HTMLCanvasElement, isForSplit: boolean = false): string => {
+  const isHighContrast = detectHighContrast(canvas);
+  const quality = isForSplit ? PDF_IMAGE_JPEG_QUALITY_SPLIT : PDF_IMAGE_JPEG_QUALITY;
+
+  if (isHighContrast) {
+    // Use PNG for text/documents (lossless)
+    return canvas.toDataURL('image/png');
+  } else {
+    // Use JPEG for photos (lossy, smaller file size)
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+};
+
+// Helper function to calculate image DPI based on dimensions
+
 // Helper function to split and render image across multiple pages
 const addImageWithSplit = async (
   doc: jsPDFWithAutoTable,
@@ -51,7 +96,7 @@ const addImageWithSplit = async (
 
   // Check if image fits on current page
   if (displayHeight <= availableHeight) {
-    // Image fits - compress it before adding
+    // Image fits - compress/format it before adding
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (ctx) {
@@ -66,8 +111,8 @@ const addImageWithSplit = async (
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(imgElement, 0, 0, width, height);
-      const compressedUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
-      doc.addImage(compressedUrl, imageFormat, margin, startY, displayWidth, displayHeight);
+      const dataUrl = canvasToOptimalDataUrl(canvas, false);
+      doc.addImage(dataUrl, imageFormat, margin, startY, displayWidth, displayHeight);
     } else {
       doc.addImage(imgElement, imageFormat, margin, startY, displayWidth, displayHeight);
     }
@@ -136,7 +181,7 @@ const addImageWithSplit = async (
       canvas.width, canvas.height
     );
 
-    const chunkDataUrl = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY_SPLIT);
+    const chunkDataUrl = canvasToOptimalDataUrl(canvas, true);
 
     // Add page if needed (not for first chunk if there's space)
     if (i > 0 || currentY + chunkDisplayHeight > pageHeight - margin) {

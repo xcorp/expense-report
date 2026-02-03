@@ -30,3 +30,4 @@ export const PDF_IMAGE_OVERLAP_MM = 25; // Overlap in mm when splitting images a
 export const PDF_IMAGE_MAX_WIDTH_PX = 2400; // Maximum image width in pixels (maintains ~340 DPI at 180mm display width)
 export const PDF_IMAGE_JPEG_QUALITY = 0.75; // JPEG compression quality for normal images (0.0-1.0)
 export const PDF_IMAGE_JPEG_QUALITY_SPLIT = 0.85; // JPEG compression quality for image chunks (higher to avoid double compression)
+export const PDF_IMAGE_CONTRAST_THRESHOLD = 85; // Threshold for detecting high contrast images (use PNG instead of JPEG for text/documents)
