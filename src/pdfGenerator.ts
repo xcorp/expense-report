@@ -464,7 +464,8 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
           if (expense.passengers) details.push(`${translations['Passengers']}: ${expense.passengers}`);
           if (expense.distanceKm !== undefined) details.push(`${translations['Distance (km)']}: ${expense.distanceKm}`);
           const detailLine = details.length > 0 ? ` (${details.join(' · ')})` : '';
-          doc.text(`#${expenseIndex + 1}: ${expense.description || ''} - ${category}${detailLine}`, 14, y);
+          const label = `#${expenseIndex + 1}: ${expense.description || ''} - ${category}`;
+          doc.text(`${label}${detailLine}`, 14, y);
           y += 5;
 
           // Render all pages of the PDF
@@ -497,8 +498,26 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
                 y = 20; // Reset y position for new page
               }
 
+              // Add continuation labels for PDF pages (similar to split images)
+              doc.setFontSize(9);
+              doc.setTextColor(128, 128, 128);
+              if (pageNum > 1) {
+                doc.text(`↑ Forts. från föregående sida: ${label}`, margin, y);
+                y += 5;
+              }
+
               doc.addImage(dataUrl, 'PNG', margin, y, imgDisplayWidth, imgDisplayHeight);
-              y += imgDisplayHeight + 10; // Move y position after adding the image
+              y += imgDisplayHeight;
+
+              if (pageNum < pdf.numPages) {
+                doc.setFontSize(9);
+                doc.setTextColor(128, 128, 128);
+                doc.text(`↓ Forts. på nästa sida`, margin, y + 3);
+                y += 5;
+              }
+
+              doc.setTextColor(0, 0, 0); // Reset color
+              y += 10; // Move y position after adding the image
             }
           }
         } catch (error) {
