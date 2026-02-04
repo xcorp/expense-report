@@ -184,7 +184,7 @@ const addImageWithSplit = async (
   const overflowAmount = displayHeight - availableHeight;
   const overflowPercentage = (overflowAmount / displayHeight) * 100;
 
-  // Check if image is narrow (< 45% of page width)
+  // Check if image is narrow (< 40% of page width)
   const pageWidth = doc.internal.pageSize.getWidth();
   const widthPercentage = (displayWidth / pageWidth) * 100;
   const isNarrowImage = widthPercentage < PDF_IMAGE_NARROW_THRESHOLD_PERCENT;
@@ -193,7 +193,6 @@ const addImageWithSplit = async (
   if (isNarrowImage && availableHeight > 0) {
     const scaledHeight = availableHeight;
     const scaledWidth = (imgElement.width / imgElement.height) * scaledHeight;
-    console.log(`Narrow image detected (${widthPercentage.toFixed(1)}% of page width), scaling instead of splitting`);
     doc.addImage(imgElement, imageFormat, margin, startY, scaledWidth, scaledHeight);
     return startY + scaledHeight;
   }
