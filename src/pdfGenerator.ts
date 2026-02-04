@@ -13,7 +13,8 @@ import {
   PDF_IMAGE_JPEG_QUALITY_SPLIT,
   PDF_IMAGE_JPEG_QUALITY_HIGH_CONTRAST,
   PDF_IMAGE_CONTRAST_THRESHOLD,
-  PDF_IMAGE_OPTIMAL_WIDTH_PX
+  PDF_IMAGE_OPTIMAL_WIDTH_PX,
+  PDF_IMAGE_NARROW_THRESHOLD_PERCENT
 } from './config';
 // Use a local copy of the pdf.worker — we'll copy it into `public/` so it's
 // served from the same origin and avoids CORS or dynamic-import issues.
@@ -182,6 +183,20 @@ const addImageWithSplit = async (
   // Calculate percentage on next page if we just let it overflow
   const overflowAmount = displayHeight - availableHeight;
   const overflowPercentage = (overflowAmount / displayHeight) * 100;
+
+  // Check if image is narrow (< 45% of page width)
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const widthPercentage = (displayWidth / pageWidth) * 100;
+  const isNarrowImage = widthPercentage < PDF_IMAGE_NARROW_THRESHOLD_PERCENT;
+
+  // For narrow images, prefer scaling over splitting to save horizontal space
+  if (isNarrowImage && availableHeight > 0) {
+    const scaledHeight = availableHeight;
+    const scaledWidth = (imgElement.width / imgElement.height) * scaledHeight;
+    console.log(`Narrow image detected (${widthPercentage.toFixed(1)}% of page width), scaling instead of splitting`);
+    doc.addImage(imgElement, imageFormat, margin, startY, scaledWidth, scaledHeight);
+    return startY + scaledHeight;
+  }
 
   // If less than threshold would overflow, try to scale down instead
   if (overflowPercentage < PDF_IMAGE_MIN_SPLIT_PERCENTAGE) {
@@ -552,9 +567,32 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
           const margin = 15;
           const pageWidth = doc.internal.pageSize.getWidth();
           const pageHeight = doc.internal.pageSize.getHeight();
-          let width = Math.min(180, pageWidth - (margin * 2));
-          let height = width / ratio;
+          const maxWidth = pageWidth - (margin * 2);
           const maxHeight = pageHeight - 40; // Max height for image chunks
+          
+          // Calculate natural display size based on aspect ratio
+          // If image is very wide (landscape), use max width
+          // If image is tall/narrow (portrait), use natural width up to max
+          let width: number;
+          let height: number;
+          
+          if (ratio >= 1) {
+            // Landscape or square: use max width
+            width = maxWidth;
+            height = width / ratio;
+          } else {
+            // Portrait: calculate width based on max height constraint
+            const naturalHeightAtMaxWidth = maxWidth / ratio;
+            if (naturalHeightAtMaxWidth <= maxHeight) {
+              // Image fits at max width
+              width = maxWidth;
+              height = naturalHeightAtMaxWidth;
+            } else {
+              // Image is very tall, constrain by height
+              height = maxHeight;
+              width = height * ratio;
+            }
+          }
 
           // Add expense description
           doc.setFontSize(12);
