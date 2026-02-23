@@ -506,8 +506,8 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
               let imgDisplayWidth = availableWidth * 0.95;
               let imgDisplayHeight = (canvas.height / canvas.width) * (availableWidth * 0.95);
 
-              // For pages after the first, check if we need a new page
-              if (pageNum > 1 && y + imgDisplayHeight + margin > pdfPageHeight) {
+              // Check if we need a new page before adding this image
+              if (y + imgDisplayHeight + margin > pdfPageHeight) {
                 doc.addPage();
                 y = 20; // Reset y position for new page
               }
