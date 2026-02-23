@@ -450,22 +450,17 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
           const loadingTask = getDocument({ data: pdfData });
           const pdf = await loadingTask.promise;
 
-          // Get first page to calculate dimensions before rendering
-          const firstPage = await pdf.getPage(1);
-          const firstViewport = firstPage.getViewport({ scale: 1.5 });
-
-          // Calculate first image dimensions
+          // Calculate page dimensions once
           const pdfPageWidth = doc.internal.pageSize.getWidth();
           const pdfPageHeight = doc.internal.pageSize.getHeight();
           const margin = 15;
           const availableWidth = pdfPageWidth - (margin * 2);
-          const firstImgDisplayHeight = (firstViewport.height / firstViewport.width) * (availableWidth * 0.95);
-
-          // Check if description + first image will fit on current page
           const descriptionHeight = 10; // Approximate height for description text
-          const totalNeededHeight = descriptionHeight + firstImgDisplayHeight;
 
-          if (y + totalNeededHeight + margin > pdfPageHeight) {
+          // For multi-page PDFs, we can't reliably predict total height beforehand.
+          // Instead, we'll ensure there's space for description and let each page
+          // be placed on a new page if needed via the check in the render loop below.
+          if (y + descriptionHeight + margin > pdfPageHeight) {
             doc.addPage();
             y = 20;
           }
@@ -520,7 +515,7 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
                 y += 5;
               }
 
-              doc.addImage(dataUrl, 'PNG', margin, y, imgDisplayWidth, imgDisplayHeight);
+              doc.addImage(dataUrl, 'JPEG', margin, y, imgDisplayWidth, imgDisplayHeight);
               y += imgDisplayHeight;
 
               if (pageNum < pdf.numPages) {
