@@ -440,9 +440,17 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
     doc.text(translations['Receipts'], 14, 20);
 
     let y = 30;
+    let receiptCount = 0; // Counter for receipts that actually have images
     for (let expenseIndex = 0; expenseIndex < expenses.length; expenseIndex++) {
       const expense = expenses[expenseIndex];
       if (!expense.image) continue;
+
+      // Start each receipt on a new page (except the first one on the receipts page)
+      if (receiptCount > 0) {
+        doc.addPage();
+        y = 20;
+      }
+      receiptCount++;
 
       if (expense.imageType === 'application/pdf') {
         try {
@@ -455,15 +463,6 @@ export const generatePdf = async (expenses: Expense[], reportDate?: string): Pro
           const pdfPageHeight = doc.internal.pageSize.getHeight();
           const margin = 15;
           const availableWidth = pdfPageWidth - (margin * 2);
-          const descriptionHeight = 10; // Approximate height for description text
-
-          // For multi-page PDFs, we can't reliably predict total height beforehand.
-          // Instead, we'll ensure there's space for description and let each page
-          // be placed on a new page if needed via the check in the render loop below.
-          if (y + descriptionHeight + margin > pdfPageHeight) {
-            doc.addPage();
-            y = 20;
-          }
 
           // Add expense description/details before the first page
           doc.setFontSize(12);
